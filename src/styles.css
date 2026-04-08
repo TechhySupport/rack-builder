@@ -561,6 +561,12 @@ body {
   align-items: flex-start;
 }
 
+.preview-panel--with-toolbar {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-md);
+}
+
 .preview-empty {
   width: 100%;
   min-height: 400px;
@@ -576,6 +582,65 @@ body {
   color: var(--text-muted);
   font-size: 14px;
   text-align: center;
+}
+
+/* ── Preview mode toggle bar ──────────────────────────────────────────────── */
+.preview-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: 4px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  align-self: flex-start;
+}
+
+.preview-mode-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.preview-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 2px;
+}
+
+.preview-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.preview-mode-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+}
+
+.preview-mode-btn--active {
+  background: var(--surface);
+  color: var(--brand-dark);
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -780,7 +845,8 @@ body {
 @media print {
   .app-header,
   .app-toolbar,
-  .left-panel { display: none !important; }
+  .left-panel,
+  .preview-mode-bar { display: none !important; }
 
   .app-body { display: block; }
 
@@ -794,6 +860,11 @@ body {
     width: 100%;
     box-shadow: none;
     border: 2px solid #000;
+  }
+
+  .preview-panel--with-toolbar {
+    align-items: flex-start;
+    gap: 0;
   }
 
   .rack-block { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
