@@ -17,7 +17,7 @@ const IconChevron = () => (
   </svg>
 );
 
-export default function FileMenu({ racks, activeRack, frameRef, onImport, onExportAllPng }) {
+export default function FileMenu({ racks, activeRack, frameRef, onImport, onExportAllPng, onExportAllPngSimple }) {
   const [open,       setOpen]       = useState(false);
   const [jsonModal,  setJsonModal]  = useState(false);
   const [jsonText,   setJsonText]   = useState('');
@@ -150,12 +150,22 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
     } catch (e) { alert(`Export failed: ${e.message}`); }
   }
 
-  // ── PNG Export — all racks as ZIP ──────────────────────────────────────────
+  // ── PNG Export — all racks as ZIP (diagram) ────────────────────────────────
   async function exportPngAll() {
     closeMenu();
     setExporting(true);
     try {
       await onExportAllPng();
+    } catch (e) { alert(`ZIP export failed: ${e.message}`); }
+    setExporting(false);
+  }
+
+  // ── PNG Export — all racks as ZIP (simple) ──────────────────────────────────
+  async function exportPngAllSimple() {
+    closeMenu();
+    setExporting(true);
+    try {
+      await onExportAllPngSimple();
     } catch (e) { alert(`ZIP export failed: ${e.message}`); }
     setExporting(false);
   }
@@ -215,7 +225,10 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
               Export PNG — Current Rack
             </button>
             <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={exportPngAll}>
-              Export PNG — All Racks (.zip)
+              Export PNG — All Racks, Diagram (.zip)
+            </button>
+            <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={exportPngAllSimple}>
+              Export PNG — All Racks, Simple (.zip)
             </button>
             <button className="fmd-item" role="menuitem" disabled={!hasActive} onClick={() => { window.print(); closeMenu(); }}>
               Print

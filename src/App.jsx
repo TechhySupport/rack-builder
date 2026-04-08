@@ -7,6 +7,7 @@ import RackEditorTable from './components/RackEditorTable';
 import FileMenu from './components/FileMenu';
 import SampleSelector from './components/SampleSelector';
 import { RackElevation } from './components/RackElevation';
+import RackFrame from './components/RackFrame';
 import { sampleData } from './data/sampleRacks';
 import { validateRackData, normalizeRackData } from './utils/rackUtils';
 import { exportAllRacksAsZip } from './utils/exportAllPng';
@@ -21,8 +22,9 @@ export default function App() {
   const [activeIndex, setActiveIndex]   = useState(0);
   const [validationMsgs, setValidationMsgs] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
-  const frameRef            = useRef(null);
-  const allRacksContainerRef = useRef(null);
+  const frameRef                = useRef(null);
+  const allRacksContainerRef    = useRef(null);
+  const allRacksSimpleRef       = useRef(null);
 
   const activeRack = racks[activeIndex] || null;
 
@@ -75,8 +77,9 @@ export default function App() {
     frameRef.current = ref?.current || null;
   }, []);
 
-  async function handleExportAllPng() {
-    await exportAllRacksAsZip(racks, allRacksContainerRef.current);
+  async function handleExportAllPng(mode = 'diagram') {
+    const el = mode === 'simple' ? allRacksSimpleRef.current : allRacksContainerRef.current;
+    await exportAllRacksAsZip(racks, el, mode);
   }
 
   const allMessages = [...importErrors, ...validationMsgs];
@@ -93,6 +96,7 @@ export default function App() {
           frameRef={frameRef}
           onImport={handleImport}
           onExportAllPng={handleExportAllPng}
+          onExportAllPngSimple={() => handleExportAllPng('simple')}
         />
         <div className="toolbar-vdiv" />
         <SampleSelector onLoad={handleLoadSample} />
@@ -145,7 +149,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* ── Hidden off-screen container: all racks rendered for ZIP export ── */}
+      {/* ── Hidden off-screen container: diagram mode ZIP export ── */}
       <div
         ref={allRacksContainerRef}
         style={{
@@ -161,6 +165,25 @@ export default function App() {
       >
         {racks.map((rack, i) => (
           <RackElevation key={`zip-${i}-${rack.rackName}`} rack={rack} />
+        ))}
+      </div>
+
+      {/* ── Hidden off-screen container: simple mode ZIP export ── */}
+      <div
+        ref={allRacksSimpleRef}
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0,
+        }}
+        aria-hidden="true"
+      >
+        {racks.map((rack, i) => (
+          <RackFrame key={`zip-simple-${i}-${rack.rackName}`} rack={rack} />
         ))}
       </div>
     </div>

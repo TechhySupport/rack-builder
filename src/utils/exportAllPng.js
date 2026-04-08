@@ -9,7 +9,7 @@ import JSZip from 'jszip';
  * @param {HTMLElement} containerEl - the hidden off-screen container whose
  *                                    children are <RackElevation> wrappers
  */
-export async function exportAllRacksAsZip(racks, containerEl) {
+export async function exportAllRacksAsZip(racks, containerEl, mode = 'diagram') {
   if (!racks || racks.length === 0) throw new Error('No racks to export.');
   if (!containerEl) throw new Error('Export container not ready.');
 
@@ -37,7 +37,7 @@ export async function exportAllRacksAsZip(racks, containerEl) {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'rack-elevations.zip';
+  a.download = mode === 'simple' ? 'rack-elevations-simple.zip' : 'rack-elevations.zip';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
