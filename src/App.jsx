@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback } from 'react';
 import Header from './components/Header';
-import JsonImportCard from './components/JsonImportCard';
-import FileImportCard from './components/FileImportCard';
 import ValidationPanel from './components/ValidationPanel';
 import RackSelector from './components/RackSelector';
 import RackPreviewPanel from './components/RackPreviewPanel';
 import RackEditorTable from './components/RackEditorTable';
-import ExportPanel from './components/ExportPanel';
+import FileMenu from './components/FileMenu';
 import SampleSelector from './components/SampleSelector';
+import { RackElevation } from './components/RackElevation';
 import { sampleData } from './data/sampleRacks';
 import { validateRackData, normalizeRackData } from './utils/rackUtils';
+import { exportAllRacksAsZip } from './utils/exportAllPng';
 import './styles.css';
 
 function normalizeAll(racks) {
@@ -17,11 +17,12 @@ function normalizeAll(racks) {
 }
 
 export default function App() {
-  const [racks, setRacks] = useState(() => normalizeAll(sampleData.racks));
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [racks, setRacks]               = useState(() => normalizeAll(sampleData.racks));
+  const [activeIndex, setActiveIndex]   = useState(0);
   const [validationMsgs, setValidationMsgs] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
-  const frameRef = useRef(null);
+  const frameRef            = useRef(null);
+  const allRacksContainerRef = useRef(null);
 
   const activeRack = racks[activeIndex] || null;
 
@@ -32,12 +33,7 @@ export default function App() {
     setValidationMsgs(validateRackData(normalized));
   }
 
-  function handleJsonImport(newRacks) {
-    setImportErrors([]);
-    applyRacks(newRacks);
-  }
-
-  function handleCsvImport(newRacks, errors) {
+  function handleImport(newRacks, errors) {
     setImportErrors(errors || []);
     applyRacks(newRacks);
   }
@@ -55,8 +51,23 @@ export default function App() {
   }
 
   function handleRackChange(updatedRack) {
-    const updated = racks.map((r, i) => (i === activeIndex ? normalizeRackData(updatedRack) : r));
+    const updated = racks.map((r, i) =>
+      i === activeIndex ? normalizeRackData(updatedRack) : r
+    );
     setRacks(updated);
+    setValidationMsgs(validateRackData(updated));
+  }
+
+  function handleAddRack() {
+    const newRack = normalizeRackData({
+      rackName: `New Rack ${racks.length + 1}`,
+      rackNumber: String(racks.length + 1),
+      maxRU: 42,
+      items: [],
+    });
+    const updated = [...racks, newRack];
+    setRacks(updated);
+    setActiveIndex(updated.length - 1);
     setValidationMsgs(validateRackData(updated));
   }
 
@@ -64,12 +75,26 @@ export default function App() {
     frameRef.current = ref?.current || null;
   }, []);
 
+  async function handleExportAllPng() {
+    await exportAllRacksAsZip(racks, allRacksContainerRef.current);
+  }
+
   const allMessages = [...importErrors, ...validationMsgs];
 
   return (
     <div className="app-shell">
       <Header />
+
+      {/* ── Toolbar ─────────────────────────────────────────────────── */}
       <div className="app-toolbar">
+        <FileMenu
+          racks={racks}
+          activeRack={activeRack}
+          frameRef={frameRef}
+          onImport={handleImport}
+          onExportAllPng={handleExportAllPng}
+        />
+        <div className="toolbar-vdiv" />
         <SampleSelector onLoad={handleLoadSample} />
         <button className="btn btn-ghost btn-sm" onClick={() => handleLoadSample(sampleData.racks)}>
           Load Sample
@@ -77,36 +102,66 @@ export default function App() {
         <button className="btn btn-ghost btn-sm" onClick={handleClear}>
           Clear
         </button>
-        <div className="toolbar-sep" />
-        <ExportPanel racks={racks} activeRack={activeRack} frameRef={frameRef} />
       </div>
 
+      {/* ── Validation bar (only when there are issues) ─────────────── */}
+      {allMessages.length > 0 && (
+        <div className="validation-bar">
+          <ValidationPanel messages={allMessages} />
+        </div>
+      )}
+
+      {/* ── Main body ───────────────────────────────────────────────── */}
       <div className="app-body">
         <aside className="left-panel">
-          <JsonImportCard onImport={handleJsonImport} />
-          <FileImportCard onImport={handleCsvImport} />
-          {allMessages.length > 0 && <ValidationPanel messages={allMessages} />}
-          {racks.length > 0 && (
+          {racks.length > 0 ? (
             <>
               <RackSelector
                 racks={racks}
                 activeIndex={activeIndex}
                 onChange={setActiveIndex}
+                onAdd={handleAddRack}
               />
               <RackEditorTable rack={activeRack} onChange={handleRackChange} />
             </>
-          )}
-          {racks.length === 0 && allMessages.length === 0 && (
-            <ValidationPanel messages={[]} />
+          ) : (
+            <div className="left-empty">
+              <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+                <rect x="4" y="4" width="36" height="36" rx="5" stroke="#cbd5e1" strokeWidth="1.5"/>
+                <rect x="9" y="11" width="26" height="4" rx="1.5" fill="#e2e8f0"/>
+                <rect x="9" y="19" width="26" height="3" rx="1.5" fill="#e2e8f0" opacity="0.7"/>
+                <rect x="9" y="25" width="18" height="3" rx="1.5" fill="#e2e8f0" opacity="0.5"/>
+              </svg>
+              <p>Use <strong>File</strong> to import rack data,<br/>or load a sample above.</p>
+              <button className="btn btn-outline btn-sm" onClick={handleAddRack}>
+                + Add New Rack
+              </button>
+            </div>
           )}
         </aside>
 
         <main className="right-panel">
-          <RackPreviewPanel
-            rack={activeRack}
-            onExportRef={captureFrameRef}
-          />
+          <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} />
         </main>
+      </div>
+
+      {/* ── Hidden off-screen container: all racks rendered for ZIP export ── */}
+      <div
+        ref={allRacksContainerRef}
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: 0,
+          pointerEvents: 'none',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0,
+        }}
+        aria-hidden="true"
+      >
+        {racks.map((rack, i) => (
+          <RackElevation key={`zip-${i}-${rack.rackName}`} rack={rack} />
+        ))}
       </div>
     </div>
   );

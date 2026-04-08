@@ -1,4 +1,4 @@
-export default function RackSelector({ racks, activeIndex, onChange }) {
+export default function RackSelector({ racks, activeIndex, onChange, onAdd }) {
   if (!racks || racks.length === 0) return null;
 
   return (
@@ -13,6 +13,14 @@ export default function RackSelector({ racks, activeIndex, onChange }) {
           {rack.rackNumber && <span className="rack-tab-num">#{rack.rackNumber}</span>}
         </button>
       ))}
+      <button
+        className="rack-tab rack-tab--add"
+        onClick={onAdd}
+        title="Add new rack"
+        aria-label="Add new rack"
+      >
+        +
+      </button>
     </div>
   );
 }
