@@ -68,7 +68,7 @@ export default function App() {
     const updated = [...racks, newRack];
     setRacks(updated);
     setActiveIndex(updated.length - 1);
-    setValidationMsgs(validateRackData(updated));
+    setValidationMsgs([]);
   }
 
   const captureFrameRef = useCallback((ref) => {

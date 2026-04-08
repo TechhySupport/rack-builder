@@ -472,6 +472,126 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  CISCO CATALYST 2960
+// ─────────────────────────────────────────────────────────────────────────────
+export function Catalyst2960Face({ x, y, w, h, label, ruCount }) {
+  // Layout: [LED panel | 24 RJ45 ports (2×12) | model text | 2 SFP slots + console]
+  const ledW    = 44;
+  const ledX    = x + 4;
+  const sfpW    = 44;
+  const sfpX    = x + w - sfpW - 4;
+
+  // Port area — 12 columns × 2 rows = 24 ports (stacked pairs)
+  const numCols = 12;
+  const pW = 9, pH = 10, colGap = 3, rowGap = 3;
+  const totalPortW = numCols * (pW + colGap) - colGap;  // 129 px
+  const portX0 = ledX + ledW + 6;
+  const totalPortH = pH * 2 + rowGap;
+  const portY0 = y + (h - totalPortH) / 2;
+
+  const ports = [];
+  for (let col = 0; col < numCols; col++) {
+    const px = portX0 + col * (pW + colGap);
+    // Top row (ports 1, 3, 5 … 23)
+    ports.push(
+      <g key={`t${col}`}>
+        <rect x={px} y={portY0 - 2} width={pW} height={2}
+          fill={C_LED_GRN} opacity={0.65} rx={0.3} />
+        <rect x={px} y={portY0} width={pW} height={pH}
+          fill={C_PORT} rx={0.5} />
+        <rect x={px + 1} y={portY0 + 1} width={pW - 2} height={3}
+          fill="#383d48" rx={0.3} />
+      </g>
+    );
+    // Bottom row (ports 2, 4, 6 … 24)
+    const py2 = portY0 + pH + rowGap;
+    ports.push(
+      <g key={`b${col}`}>
+        <rect x={px} y={py2} width={pW} height={pH}
+          fill={C_PORT} rx={0.5} />
+        <rect x={px + 1} y={py2 + 1} width={pW - 2} height={3}
+          fill="#383d48" rx={0.3} />
+        <rect x={px} y={py2 + pH + 1} width={pW} height={2}
+          fill={C_LED_GRN} opacity={0.4} rx={0.3} />
+      </g>
+    );
+  }
+
+  // Model label area between ports and SFP panel
+  const labelX0 = portX0 + totalPortW + 6;
+  const labelAreaW = sfpX - labelX0 - 4;
+
+  // SFP slots (2 stacked)
+  const sfpSlotH = Math.floor((h - 8) / 2) - 1;
+  const sfpSlotW = sfpW - 8;
+
+  return (
+    <Face x={x} y={y} w={w} h={h} fill="#b8c2cc">
+      {/* Left LED status panel */}
+      <rect x={ledX} y={y + 2} width={ledW} height={h - 4}
+        fill="#a0aab6" stroke="#788090" strokeWidth={0.5} rx={1} />
+      {/* SYST LED */}
+      <circle cx={ledX + 7} cy={y + h / 2 - 7} r={2.8}
+        fill={C_LED_GRN} opacity={0.9} />
+      <text x={ledX + 13} y={y + h / 2 - 7}
+        dominantBaseline="middle" fontSize={5.5} fill="#e4e8ee"
+        fontFamily="'Courier New', monospace">SYST</text>
+      {/* RPS LED */}
+      <circle cx={ledX + 7} cy={y + h / 2 + 1} r={2.2}
+        fill="#f59e0b" opacity={0.45} />
+      <text x={ledX + 13} y={y + h / 2 + 1}
+        dominantBaseline="middle" fontSize={5.5} fill="#e4e8ee"
+        fontFamily="'Courier New', monospace">RPS</text>
+      {/* STAT LED */}
+      <circle cx={ledX + 7} cy={y + h / 2 + 8} r={2.2}
+        fill={C_LED_GRN} opacity={0.5} />
+      <text x={ledX + 13} y={y + h / 2 + 8}
+        dominantBaseline="middle" fontSize={5.5} fill="#e4e8ee"
+        fontFamily="'Courier New', monospace">STAT</text>
+      {/* Mode button */}
+      <circle cx={ledX + ledW - 8} cy={y + h / 2} r={4}
+        fill="#1e2228" stroke="#505a68" strokeWidth={0.5} />
+
+      {/* 24 RJ45 ports */}
+      {ports}
+
+      {/* Model text */}
+      {labelAreaW > 12 && (
+        <g>
+          <text x={labelX0 + labelAreaW / 2} y={y + h / 2 - 4}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize={6} fill="#3a4555" fontFamily="'Courier New', monospace"
+            letterSpacing={0.8}
+          >CISCO</text>
+          <text x={labelX0 + labelAreaW / 2} y={y + h / 2 + 4}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize={5.5} fill="#5a6272" fontFamily="'Courier New', monospace"
+          >{trunc(label, 14)}</text>
+        </g>
+      )}
+
+      {/* Right SFP + console panel */}
+      <rect x={sfpX} y={y + 2} width={sfpW} height={h - 4}
+        fill="#909aa6" stroke="#6a7280" strokeWidth={0.5} rx={1} />
+      {/* SFP 1 */}
+      <rect x={sfpX + 4} y={y + 3} width={sfpSlotW} height={sfpSlotH}
+        fill="#1e2228" stroke="#363c48" strokeWidth={0.4} rx={1} />
+      <text x={sfpX + 4 + sfpSlotW / 2} y={y + 3 + sfpSlotH / 2}
+        textAnchor="middle" dominantBaseline="middle"
+        fontSize={5} fill="#505a68" fontFamily="'Courier New', monospace"
+      >SFP1</text>
+      {/* SFP 2 */}
+      <rect x={sfpX + 4} y={y + 3 + sfpSlotH + 2} width={sfpSlotW} height={sfpSlotH}
+        fill="#1e2228" stroke="#363c48" strokeWidth={0.4} rx={1} />
+      <text x={sfpX + 4 + sfpSlotW / 2} y={y + 3 + sfpSlotH + 2 + sfpSlotH / 2}
+        textAnchor="middle" dominantBaseline="middle"
+        fontSize={5} fill="#505a68" fontFamily="'Courier New', monospace"
+      >SFP2</text>
+    </Face>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  EMPTY SLOT
 // ─────────────────────────────────────────────────────────────────────────────
 export function EmptyFace({ x, y, w, h }) {
