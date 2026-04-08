@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#0f172a"/>
+  <!-- monitor screen -->
+  <rect x="4" y="3" width="32" height="18" rx="2" fill="#1e293b"/>
+  <rect x="6" y="5" width="28" height="14" rx="1" fill="#0ea5e9" opacity="0.3"/>
+  <!-- stand -->
+  <rect x="20" y="21" width="8" height="2" rx="1" fill="#334155"/>
+  <rect x="22" y="19" width="4" height="3" rx="0.5" fill="#334155"/>
+  <!-- desktop unit -->
+  <rect x="38" y="6"  width="8"  height="12" rx="2" fill="#1e3a5f"/>
+  <circle cx="42" cy="12" r="3" fill="#0f2044"/>
+  <circle cx="42" cy="12" r="1.5" fill="#1e3a5f"/>
+</svg>

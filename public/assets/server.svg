@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#1c1c2e"/>
+  <!-- server body -->
+  <rect x="3" y="3" width="42" height="18" rx="2" fill="#252540"/>
+  <!-- drive bay slots -->
+  <rect x="6"  y="6"  width="6" height="12" rx="1" fill="#1a1a30"/>
+  <rect x="14" y="6"  width="6" height="12" rx="1" fill="#1a1a30"/>
+  <rect x="22" y="6"  width="6" height="12" rx="1" fill="#1a1a30"/>
+  <rect x="30" y="6"  width="6" height="12" rx="1" fill="#1a1a30"/>
+  <!-- status panel -->
+  <rect x="38" y="6"  width="6" height="5"  rx="1" fill="#0f0f1e"/>
+  <circle cx="41" cy="8"  r="1" fill="#4ade80"/>
+  <circle cx="41" cy="11" r="1" fill="#3b82f6"/>
+</svg>

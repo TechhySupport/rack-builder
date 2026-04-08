@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#0f172a"/>
+  <!-- screen bezel -->
+  <rect x="4" y="3" width="40" height="18" rx="2" fill="#1e293b"/>
+  <!-- screen -->
+  <rect x="6" y="5" width="36" height="14" rx="1" fill="#0c4a6e"/>
+  <!-- button strip -->
+  <circle cx="44" cy="12" r="1.5" fill="#475569"/>
+  <!-- camera units in corners -->
+  <rect x="8"  y="7"  width="5" height="4" rx="1" fill="#164e63"/>
+  <rect x="18" y="7"  width="5" height="4" rx="1" fill="#164e63"/>
+  <rect x="28" y="7"  width="5" height="4" rx="1" fill="#164e63"/>
+  <rect x="8"  y="13" width="5" height="4" rx="1" fill="#164e63"/>
+  <rect x="28" y="13" width="5" height="4" rx="1" fill="#164e63"/>
+  <!-- time overlay -->
+  <rect x="16" y="14" width="14" height="3" rx="0.5" fill="#0a2740" opacity="0.8"/>
+</svg>

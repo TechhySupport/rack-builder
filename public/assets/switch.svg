@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#1e3a5f"/>
+  <rect x="4" y="8" width="40" height="8" rx="1.5" fill="#234a7a"/>
+  <!-- ports row -->
+  <rect x="6" y="10" width="4" height="4" rx="0.5" fill="#3b82f6"/>
+  <rect x="12" y="10" width="4" height="4" rx="0.5" fill="#3b82f6"/>
+  <rect x="18" y="10" width="4" height="4" rx="0.5" fill="#3b82f6"/>
+  <rect x="24" y="10" width="4" height="4" rx="0.5" fill="#3b82f6"/>
+  <rect x="30" y="10" width="4" height="4" rx="0.5" fill="#3b82f6"/>
+  <rect x="36" y="10" width="4" height="4" rx="0.5" fill="#22d3ee"/>
+  <!-- status LEDs -->
+  <circle cx="6"  cy="5" r="1.2" fill="#22d3ee"/>
+  <circle cx="10" cy="5" r="1.2" fill="#4ade80"/>
+  <circle cx="14" cy="5" r="1.2" fill="#4ade80"/>
+</svg>

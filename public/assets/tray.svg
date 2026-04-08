@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#292524"/>
+  <!-- pull-out tray -->
+  <rect x="4" y="7" width="40" height="10" rx="1.5" fill="#3c3836"/>
+  <!-- handle lines -->
+  <rect x="18" y="10" width="12" height="4" rx="1" fill="#57534e"/>
+  <line x1="18" y1="12" x2="30" y2="12" stroke="#78716c" stroke-width="0.5"/>
+</svg>

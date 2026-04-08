@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" fill="none">
+  <rect width="48" height="24" rx="3" fill="#450a0a"/>
+  <!-- firewall body -->
+  <rect x="3" y="4" width="42" height="16" rx="2" fill="#7f1d1d"/>
+  <!-- shield icon -->
+  <path d="M20 8 L28 8 L28 14 Q24 17 20 14 Z" fill="#ef4444" opacity="0.8"/>
+  <path d="M22 11 L24 13 L27 10" stroke="white" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+  <!-- ports -->
+  <rect x="4"  y="9.5" width="4" height="5" rx="0.5" fill="#991b1b"/>
+  <rect x="10" y="9.5" width="4" height="5" rx="0.5" fill="#991b1b"/>
+  <!-- status -->
+  <circle cx="38" cy="11" r="1.5" fill="#4ade80"/>
+  <circle cx="42" cy="11" r="1.5" fill="#ef4444"/>
+  <circle cx="38" cy="15" r="1.5" fill="#fbbf24"/>
+</svg>
