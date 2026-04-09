@@ -137,12 +137,10 @@ body {
 
 /* ── Left panel ───────────────────────────────────────────────────────────── */
 .left-panel {
-  width: var(--left-w);
-  min-width: 320px;
-  max-width: var(--left-w);
+  min-width: 260px;
   flex-shrink: 0;
   background: var(--bg);
-  border-right: 1px solid var(--border);
+  border-right: none;
   overflow-y: auto;
   padding: var(--sp-lg);
   display: flex;
@@ -159,6 +157,21 @@ body {
   justify-content: center;
   align-items: flex-start;
   background: var(--bg);
+}
+
+/* ── Panel resize divider ─────────────────────────────────────────────────── */
+.panel-resizer {
+  width: 5px;
+  flex-shrink: 0;
+  background: var(--border);
+  cursor: col-resize;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 10;
+}
+.panel-resizer:hover,
+.panel-resizer:active {
+  background: var(--brand);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -529,6 +542,23 @@ body {
 .col-actions {
   width: 60px;
   text-align: center;
+}
+
+/* Column resize handle inside <th> */
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  border-right: 2px solid transparent;
+  transition: border-color 0.12s;
+}
+.col-resize-handle:hover,
+.col-resize-handle:active {
+  border-right-color: var(--brand);
 }
 
 .editor-footer {

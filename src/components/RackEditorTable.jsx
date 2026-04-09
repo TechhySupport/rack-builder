@@ -1,12 +1,46 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { ALL_TYPES, typeConfig, normalizeItemRange } from '../utils/rackUtils';
 
 function newItemTemplate(maxRU) {
   return { startRU: maxRU, endRU: maxRU, type: 'generic', label: 'New Device' };
 }
 
+/** Draggable resize handle for <th> columns */
+function ColResizeHandle({ onDragStart }) {
+  return (
+    <span
+      className="col-resize-handle"
+      onMouseDown={onDragStart}
+    />
+  );
+}
+
 export default function RackEditorTable({ rack, onChange }) {
-  const [editingField, setEditingField] = useState(null); // { row: idx, col: 'field' }
+  const [editingField, setEditingField] = useState(null);
+  const [colWidths, setColWidths] = useState({ label: 110, type: 90, startRU: 72, endRU: 72 });
+  const dragCol   = useRef(null);
+  const dragStartX = useRef(0);
+  const dragStartW = useRef(0);
+
+  const startColResize = useCallback((col, e) => {
+    e.preventDefault();
+    dragCol.current   = col;
+    dragStartX.current = e.clientX;
+    dragStartW.current = colWidths[col];
+
+    const onMove = (ev) => {
+      const delta = ev.clientX - dragStartX.current;
+      const newW  = Math.max(40, dragStartW.current + delta);
+      setColWidths(prev => ({ ...prev, [dragCol.current]: newW }));
+    };
+    const onUp = () => {
+      dragCol.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [colWidths]);
 
   if (!rack) return null;
 
@@ -85,13 +119,20 @@ export default function RackEditorTable({ rack, onChange }) {
 
       {/* Items table */}
       <div className="editor-table-wrap">
-        <table className="editor-table">
+        <table className="editor-table" style={{ tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>
+            <col style={{ width: colWidths.label }} />
+            <col style={{ width: colWidths.type }} />
+            <col style={{ width: colWidths.startRU }} />
+            <col style={{ width: colWidths.endRU }} />
+            <col style={{ width: 60 }} />
+          </colgroup>
           <thead>
             <tr>
-              <th>Label</th>
-              <th>Type</th>
-              <th>Start RU</th>
-              <th>End RU</th>
+              <th style={{ position: 'relative' }}>Label<ColResizeHandle onDragStart={e => startColResize('label', e)} /></th>
+              <th style={{ position: 'relative' }}>Type<ColResizeHandle onDragStart={e => startColResize('type', e)} /></th>
+              <th style={{ position: 'relative' }}>Start RU<ColResizeHandle onDragStart={e => startColResize('startRU', e)} /></th>
+              <th style={{ position: 'relative' }}>End RU<ColResizeHandle onDragStart={e => startColResize('endRU', e)} /></th>
               <th className="col-actions">Actions</th>
             </tr>
           </thead>

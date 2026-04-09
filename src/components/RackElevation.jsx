@@ -1,8 +1,9 @@
 /**
  * RackElevation.jsx
- * Full inline-SVG technical rack elevation diagram.
- * Renders the rack as a crisp, professional front-elevation drawing.
+ * Rack elevation diagram using 42rack.svg as the physical frame background,
+ * with device faceplates overlaid at the correct mounting positions.
  */
+import rackSvgUrl from '../assets/42rack.svg';
 import { buildRackRows } from '../utils/rackUtils';
 import {
   PatchPanelFace,
@@ -19,218 +20,162 @@ import {
   EmptyFace,
 } from './DeviceFaces';
 
-// ── Layout constants ─────────────────────────────────────────────────────────
-const RU_H       = 28;   // px per rack unit
-const SVG_W      = 490;  // total SVG width
-const HDR_H      = 42;   // header bar height
-const FTR_H      = 22;   // footer bar height
-const OUTER_PX   = 6;    // outer horizontal padding (left edge of SVG)
-const RU_NUM_W   = 26;   // RU number strip width
-const RAIL_W     = 14;   // mounting rail width (each side)
-const DEVICE_X   = OUTER_PX + RU_NUM_W + RAIL_W;          // = 46
-const DEVICE_W   = SVG_W - DEVICE_X - RAIL_W - OUTER_PX;  // = 424
+// ── 42rack.svg native coordinate constants ───────────────────────────────────
+// SVG viewBox: 0 0 800 1956  (layer1 transform already accounted for below)
+const RACK_SVG_W      = 800;
+const RACK_SVG_H      = 1956;
+// Device mounting area inside the SVG frame:
+const SVG_DEV_X       = 175;    // left edge of the mounting area (px in SVG units)
+const SVG_DEV_Y       = 44.45;  // top edge of mounting area
+const SVG_DEV_W       = 450;    // width of device faceplate area
+const SVG_DEV_H_42U   = 1867.05;// full mounting height for 42U
+// RU label strip inside mounting area
+const SVG_RU_LABEL_W  = 22;     // width reserved for RU numbers on left
+const SVG_FACE_X      = SVG_DEV_X + SVG_RU_LABEL_W;
+const SVG_FACE_W      = SVG_DEV_W - SVG_RU_LABEL_W;
+
+// ── Display scaling ───────────────────────────────────────────────────────────
+const RU_H_PX = 28; // desired pixels per rack unit in the display
 
 // ── Colours ──────────────────────────────────────────────────────────────────
-const C_OUTER    = '#b0b5be';   // outer frame colour
-const C_BODY     = '#e4e7ec';   // rack interior background
-const C_RAIL     = '#bcc0ca';   // mounting rail colour
-const C_RU_BG    = '#d8dce4';   // RU number strip background
-const C_RU_TEXT  = '#5a6272';   // RU number text
-const C_BOLT     = '#9098a6';   // bolt hole fill
-const C_BOLT_S   = '#7a8290';   // bolt hole stroke
-const C_HDR      = '#363d4e';   // header/footer bar
-const C_ROW_LINE = '#c4c8d0';   // horizontal RU separator
+const C_RU_TEXT  = '#9ca8b8';
+const C_ROW_SEP  = 'rgba(0,0,0,0.12)';
 
 // ── Choose the right face component for a device type ───────────────────────
 function renderFace(item, ruCount, x, y, w, h) {
   const props = { x, y, w, h, label: item.label || '', ruCount };
   switch (item.type) {
-    case 'patch_panel': return <PatchPanelFace   key={y} {...props} />;
-    case 'switch':      return <SwitchFace        key={y} {...props} />;
-    case 'catalyst_2960': return <Catalyst2960Face key={y} {...props} />;
-    case 'cable_manager': return <CableManagerFace key={y} {...props} />;
-    case 'server':      return <ServerFace         key={y} {...props} />;
-    case 'ups':         return <UPSFace            key={y} {...props} />;
-    case 'pdu':         return <PDUFace            key={y} {...props} />;
-    case 'fibre':       return <FibreFace          key={y} {...props} />;
-    case 'firewall':    return <FirewallFace        key={y} {...props} />;
+    case 'patch_panel':   return <PatchPanelFace   key={y} {...props} />;
+    case 'switch':        return <SwitchFace        key={y} {...props} />;
+    case 'catalyst_2960': return <Catalyst2960Face  key={y} {...props} />;
+    case 'cable_manager': return <CableManagerFace  key={y} {...props} />;
+    case 'server':        return <ServerFace         key={y} {...props} />;
+    case 'ups':           return <UPSFace            key={y} {...props} />;
+    case 'pdu':           return <PDUFace            key={y} {...props} />;
+    case 'fibre':         return <FibreFace          key={y} {...props} />;
+    case 'firewall':      return <FirewallFace        key={y} {...props} />;
     case 'tray':
     case 'shelf':
     case 'desktop':
-    case 'monitor': return <ShelfFace  key={y} {...props} />;
-    case 'nvr':     return <ServerFace key={y} {...props} />;
-    case 'empty':   return <EmptyFace  key={y} x={x} y={y} w={w} h={h} />;
+    case 'monitor':       return <ShelfFace  key={y} {...props} />;
+    case 'nvr':           return <ServerFace key={y} {...props} />;
+    case 'empty':         return <EmptyFace  key={y} x={x} y={y} w={w} h={h} />;
     default:
-      return <GenericFace key={y} {...props}
-               typeStr={item.type?.replace(/_/g, ' ')} />;
+      return <GenericFace key={y} {...props} typeStr={item.type?.replace(/_/g, ' ')} />;
   }
-}
-
-// ── Bolt holes in a mounting rail ────────────────────────────────────────────
-function RailBolts({ railCX, maxRU }) {
-  const holes = [];
-  for (let i = 0; i < maxRU; i++) {
-    // 3 holes per U (EIA-310 standard positions: 0.25", 0.875", 1.375")
-    const positions = [0.2, 0.5, 0.8];
-    positions.forEach((frac, j) => {
-      const cy = HDR_H + i * RU_H + frac * RU_H;
-      holes.push(
-        <ellipse key={`${i}-${j}`}
-          cx={railCX} cy={cy} rx={2.8} ry={2.5}
-          fill={C_BOLT} stroke={C_BOLT_S} strokeWidth={0.5} />
-      );
-    });
-  }
-  return <>{holes}</>;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 export function RackElevation({ rack, innerRef }) {
   if (!rack) return null;
 
-  const maxRU   = rack.maxRU || 42;
-  const bodyH   = maxRU * RU_H;
-  const totalH  = HDR_H + bodyH + FTR_H;
-  const rows    = buildRackRows(rack);
+  const maxRU = rack.maxRU || 42;
+  const rows  = buildRackRows(rack);
 
-  const leftRailX  = OUTER_PX + RU_NUM_W;
-  const rightRailX = DEVICE_X + DEVICE_W;
+  // Scale the SVG so device area equals maxRU * RU_H_PX pixels tall
+  const ruH_svg   = SVG_DEV_H_42U / maxRU;  // SVG units per RU (for this rack)
+  const scale     = (maxRU * RU_H_PX) / SVG_DEV_H_42U;
+  const dispW     = Math.round(RACK_SVG_W * scale);
+  const dispH     = Math.round(RACK_SVG_H * scale);
 
-  // Build device renders as a running-y approach (top → bottom)
-  let currentY = HDR_H;
-  const deviceElements = rows.map((row, idx) => {
-    const rowH = row.height * RU_H;
-    let el;
+  // Build device elements in SVG coordinate space
+  let currentY = SVG_DEV_Y;
+  const deviceElements = [];
+  const ruLines       = [];
 
+  // RU separator lines across the mounting area
+  for (let i = 0; i <= maxRU; i++) {
+    const ly = SVG_DEV_Y + i * ruH_svg;
+    ruLines.push(
+      <line key={i}
+        x1={SVG_DEV_X} x2={SVG_DEV_X + SVG_DEV_W}
+        y1={ly} y2={ly}
+        stroke={C_ROW_SEP} strokeWidth={0.6}
+      />
+    );
+  }
+
+  // RU number labels
+  const ruLabels = Array.from({ length: maxRU }, (_, i) => {
+    const ru = maxRU - i;
+    const cy = SVG_DEV_Y + i * ruH_svg + ruH_svg / 2;
+    return (
+      <text key={ru}
+        x={SVG_DEV_X + SVG_RU_LABEL_W - 3} y={cy}
+        textAnchor="end" dominantBaseline="middle"
+        fontSize={ruH_svg * 0.4} fill={C_RU_TEXT}
+        fontFamily="'Courier New', Courier, monospace"
+      >{ru}</text>
+    );
+  });
+
+  rows.forEach((row, idx) => {
+    const rowH = row.height * ruH_svg;
     if (row.type === 'item') {
-      const faceY = currentY + 1;
-      const faceH = rowH - 2;
-      el = renderFace(row.item, row.height, DEVICE_X, faceY, DEVICE_W, faceH);
+      deviceElements.push(
+        renderFace(row.item, row.height, SVG_FACE_X, currentY + 0.5, SVG_FACE_W, rowH - 1)
+      );
     } else {
-      // empty RU
-      el = <EmptyFace key={idx} x={DEVICE_X} y={currentY + 1}
-                      w={DEVICE_W} h={RU_H - 2} />;
+      deviceElements.push(
+        <EmptyFace key={`empty-${idx}`}
+          x={SVG_FACE_X} y={currentY + 0.5} w={SVG_FACE_W} h={rowH - 1} />
+      );
     }
-
     currentY += rowH;
-    return el;
   });
 
   return (
-    <div ref={innerRef} style={{ display: 'inline-block', background: '#fff', padding: '8px' }}>
+    <div ref={innerRef} style={{ display: 'inline-block', background: 'transparent' }}>
       <svg
-        width={SVG_W}
-        height={totalH}
-        viewBox={`0 0 ${SVG_W} ${totalH}`}
+        width={dispW}
+        height={dispH}
+        viewBox={`0 0 ${RACK_SVG_W} ${RACK_SVG_H}`}
         xmlns="http://www.w3.org/2000/svg"
         style={{ display: 'block', fontFamily: "system-ui, -apple-system, 'Helvetica Neue', sans-serif" }}
         aria-label={`Rack elevation diagram: ${rack.rackName || 'Unnamed Rack'}`}
       >
-        {/* ─── Outer rack frame ──────────────────────────────────────────── */}
-        {/* Shadow layer */}
-        <rect x={3} y={3} width={SVG_W - 4} height={totalH - 4}
-          fill="rgba(0,0,0,0.12)" rx={5} />
-        {/* Main frame body */}
-        <rect x={0} y={0} width={SVG_W} height={totalH}
-          fill={C_OUTER} rx={5} />
-        {/* Inner bevel highlight */}
-        <rect x={1} y={1} width={SVG_W - 2} height={4}
-          fill="rgba(255,255,255,0.25)" rx={4} />
+        {/* ─── Physical rack frame as background ─────────────────────────── */}
+        <image
+          href={rackSvgUrl}
+          x={0} y={0}
+          width={RACK_SVG_W} height={RACK_SVG_H}
+          preserveAspectRatio="none"
+        />
 
-        {/* ─── Header ────────────────────────────────────────────────────── */}
-        <rect x={0} y={0} width={SVG_W} height={HDR_H} fill={C_HDR} rx={5} />
-        {/* Square off bottom corners of header */}
-        <rect x={0} y={HDR_H - 8} width={SVG_W} height={8} fill={C_HDR} />
+        {/* ─── White background behind device area so faces are visible ──── */}
+        <rect
+          x={SVG_FACE_X} y={SVG_DEV_Y}
+          width={SVG_FACE_W} height={maxRU * ruH_svg}
+          fill="#e8eaed" opacity={0.92}
+        />
 
-        <text x={SVG_W / 2} y={HDR_H / 2 - 5}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={13} fontWeight={700} fill="#eef0f4"
-          letterSpacing={0.4}
-        >{rack.rackName || 'Unnamed Rack'}</text>
+        {/* ─── Row separator lines ────────────────────────────────────────── */}
+        {ruLines}
 
-        <text x={SVG_W / 2} y={HDR_H / 2 + 9}
-          textAnchor="middle" dominantBaseline="middle"
-          fontSize={8} fill="#7a8898"
-          fontFamily="'Courier New', Courier, monospace" letterSpacing={0.8}
-        >{rack.rackNumber
-            ? `RACK ${rack.rackNumber}  ·  ${maxRU}U`
-            : `${maxRU}U`}
-        </text>
+        {/* ─── RU number labels ───────────────────────────────────────────── */}
+        {ruLabels}
 
-        {/* ─── Rack body background ──────────────────────────────────────── */}
-        <rect x={OUTER_PX} y={HDR_H} width={SVG_W - OUTER_PX * 2} height={bodyH}
-          fill={C_BODY} />
-
-        {/* ─── Horizontal RU separator lines ─────────────────────────────── */}
-        {Array.from({ length: maxRU + 1 }, (_, i) => (
-          <line key={i}
-            x1={OUTER_PX} x2={SVG_W - OUTER_PX}
-            y1={HDR_H + i * RU_H} y2={HDR_H + i * RU_H}
-            stroke={C_ROW_LINE}
-            strokeWidth={i === 0 || i === maxRU ? 1 : 0.4}
-          />
-        ))}
-
-        {/* ─── RU number strip ───────────────────────────────────────────── */}
-        <rect x={OUTER_PX} y={HDR_H} width={RU_NUM_W} height={bodyH}
-          fill={C_RU_BG} />
-        {/* Divider line between numbers and rail */}
-        <line x1={OUTER_PX + RU_NUM_W} y1={HDR_H}
-              x2={OUTER_PX + RU_NUM_W} y2={HDR_H + bodyH}
-              stroke="#b0b8c4" strokeWidth={0.5} />
-
-        {Array.from({ length: maxRU }, (_, i) => {
-          const ru = maxRU - i;
-          const cy = HDR_H + i * RU_H + RU_H / 2;
-          return (
-            <text key={ru}
-              x={OUTER_PX + RU_NUM_W - 5} y={cy}
-              textAnchor="end" dominantBaseline="middle"
-              fontSize={8} fill={C_RU_TEXT}
-              fontFamily="'Courier New', Courier, monospace"
-            >{ru}</text>
-          );
-        })}
-
-        {/* ─── Left mounting rail ────────────────────────────────────────── */}
-        <rect x={leftRailX} y={HDR_H} width={RAIL_W} height={bodyH}
-          fill={C_RAIL} />
-        <rect x={leftRailX + 1} y={HDR_H} width={2} height={bodyH}
-          fill="rgba(255,255,255,0.28)" />
-        <RailBolts railCX={leftRailX + RAIL_W / 2} maxRU={maxRU} />
-
-        {/* ─── Right mounting rail ───────────────────────────────────────── */}
-        <rect x={rightRailX} y={HDR_H} width={RAIL_W} height={bodyH}
-          fill={C_RAIL} />
-        <rect x={rightRailX + RAIL_W - 3} y={HDR_H} width={2} height={bodyH}
-          fill="rgba(255,255,255,0.28)" />
-        <RailBolts railCX={rightRailX + RAIL_W / 2} maxRU={maxRU} />
-
-        {/* ─── Device faceplates ─────────────────────────────────────────── */}
+        {/* ─── Device faceplates ──────────────────────────────────────────── */}
         {deviceElements}
 
-        {/* ─── Footer ────────────────────────────────────────────────────── */}
-        <rect x={0} y={HDR_H + bodyH} width={SVG_W} height={FTR_H} fill={C_HDR} />
-        {/* Square off top corners of footer */}
-        <rect x={0} y={HDR_H + bodyH} width={SVG_W} height={6} fill={C_HDR} />
-        <rect x={0} y={HDR_H + bodyH + FTR_H - 5} width={SVG_W} height={5}
-          fill={C_HDR} rx={4} />
-
-        <text x={SVG_W / 2} y={HDR_H + bodyH + FTR_H / 2}
+        {/* ─── Rack name label over the top bar of the SVG ───────────────── */}
+        <text
+          x={SVG_DEV_X + SVG_DEV_W / 2} y={SVG_DEV_Y / 2}
           textAnchor="middle" dominantBaseline="middle"
-          fontSize={7} fill="#607080"
-          fontFamily="'Courier New', Courier, monospace" letterSpacing={1.2}
-        >{`${maxRU}U RACK ELEVATION`}</text>
-
-        {/* Corner bolt decorations */}
-        {[
-          [10, 10], [SVG_W - 10, 10],
-          [10, totalH - 10], [SVG_W - 10, totalH - 10],
-        ].map(([cx, cy], i) => (
-          <circle key={i} cx={cx} cy={cy} r={4}
-            fill="#4a5260" stroke="#3a4050" strokeWidth={0.5} />
-        ))}
+          fontSize={18} fontWeight={700} fill="#f0f2f5"
+          fontFamily="system-ui, -apple-system, sans-serif"
+          letterSpacing={0.5}
+        >{rack.rackName || 'Unnamed Rack'}</text>
+        {rack.rackNumber && (
+          <text
+            x={SVG_DEV_X + SVG_DEV_W / 2} y={SVG_DEV_Y / 2 + 13}
+            textAnchor="middle" dominantBaseline="middle"
+            fontSize={10} fill="#7a8898"
+            fontFamily="'Courier New', Courier, monospace"
+          >{`RACK ${rack.rackNumber}  ·  ${maxRU}U`}</text>
+        )}
       </svg>
     </div>
   );
 }
+

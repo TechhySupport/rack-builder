@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import ValidationPanel from './components/ValidationPanel';
 import RackSelector from './components/RackSelector';
@@ -17,14 +17,62 @@ function normalizeAll(racks) {
   return (racks || []).map(normalizeRackData);
 }
 
+const STORAGE_KEY_RACKS  = 'rack-builder-racks';
+const STORAGE_KEY_INDEX  = 'rack-builder-active';
+const DEFAULT_LEFT_WIDTH = 400;
+
 export default function App() {
-  const [racks, setRacks]               = useState(() => normalizeAll(sampleData.racks));
-  const [activeIndex, setActiveIndex]   = useState(0);
+  const [racks, setRacks] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_RACKS);
+      if (saved) return normalizeAll(JSON.parse(saved));
+    } catch {}
+    return normalizeAll(sampleData.racks);
+  });
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const v = parseInt(localStorage.getItem(STORAGE_KEY_INDEX) || '0', 10);
+    return isNaN(v) ? 0 : v;
+  });
   const [validationMsgs, setValidationMsgs] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
-  const frameRef                = useRef(null);
-  const allRacksContainerRef    = useRef(null);
-  const allRacksSimpleRef       = useRef(null);
+  const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
+  const frameRef             = useRef(null);
+  const allRacksContainerRef = useRef(null);
+  const allRacksSimpleRef    = useRef(null);
+  const resizerDragging      = useRef(false);
+  const dragStartX           = useRef(0);
+  const dragStartW           = useRef(0);
+
+  // ── Persist racks to localStorage ───────────────────────────────────────
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY_RACKS, JSON.stringify(racks)); } catch {}
+  }, [racks]);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY_INDEX, String(activeIndex)); } catch {}
+  }, [activeIndex]);
+
+  // ── Panel resize drag handlers ───────────────────────────────────────────
+  const onResizerMouseDown = useCallback((e) => {
+    e.preventDefault();
+    resizerDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartW.current = leftWidth;
+
+    const onMove = (ev) => {
+      if (!resizerDragging.current) return;
+      const delta = ev.clientX - dragStartX.current;
+      const newW  = Math.max(260, Math.min(700, dragStartW.current + delta));
+      setLeftWidth(newW);
+    };
+    const onUp = () => {
+      resizerDragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [leftWidth]);
 
   const activeRack = racks[activeIndex] || null;
 
@@ -73,8 +121,9 @@ export default function App() {
     setValidationMsgs([]);
   }
 
-  const captureFrameRef = useCallback((ref) => {
-    frameRef.current = ref?.current || null;
+  // Store the RefObject itself so FileMenu always reads the live DOM element
+  const captureFrameRef = useCallback((refObj) => {
+    frameRef.current = refObj ?? null;
   }, []);
 
   async function handleExportAllPng(mode = 'diagram') {
@@ -117,7 +166,7 @@ export default function App() {
 
       {/* ── Main body ───────────────────────────────────────────────── */}
       <div className="app-body">
-        <aside className="left-panel">
+        <aside className="left-panel" style={{ width: leftWidth, minWidth: leftWidth, maxWidth: leftWidth }}>
           {racks.length > 0 ? (
             <>
               <RackSelector
@@ -143,6 +192,8 @@ export default function App() {
             </div>
           )}
         </aside>
+
+        <div className="panel-resizer" onMouseDown={onResizerMouseDown} />
 
         <main className="right-panel">
           <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} />

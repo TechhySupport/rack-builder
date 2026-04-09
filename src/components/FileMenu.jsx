@@ -143,10 +143,12 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
 
   // ── PNG Export — current rack ───────────────────────────────────────────────
   async function exportPngCurrent() {
-    if (!frameRef?.current) { alert('No rack preview to export.'); return; }
+    // frameRef.current is the RackPreviewPanel's ref object; .current is the live DOM element
+    const el = frameRef?.current?.current;
+    if (!el) { alert('No rack preview to export.'); return; }
     closeMenu();
     try {
-      await exportRackAsPng(frameRef.current, `${activeRack?.rackName || 'rack'}.png`);
+      await exportRackAsPng(el, `${activeRack?.rackName || 'rack'}.png`);
     } catch (e) { alert(`Export failed: ${e.message}`); }
   }
 
