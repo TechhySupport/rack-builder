@@ -58,34 +58,63 @@ export function parseJsonInput(text) {
   return { racks, errors: [] };
 }
 
+// ─── Fuzzy-match a user-entered type string → a known ALL_TYPES key ────────────
+export function resolveType(raw) {
+  if (!raw) return 'generic';
+  const q = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  // 1. exact match
+  if (ALL_TYPES.includes(q)) return q;
+  // 2. starts-with (first win)
+  const sw = ALL_TYPES.find(t => t.startsWith(q) || q.startsWith(t));
+  if (sw) return sw;
+  // 3. contains (first win)
+  const ct = ALL_TYPES.find(t => t.includes(q) || q.includes(t));
+  return ct || 'generic';
+}
+
 // ─── Parse CSV text → { racks, errors } ───────────────────────────────────────
 export function parseCsvRows(rows) {
   // rows is array of objects from PapaParse (header mode)
-  const errors = [];
+  const errors  = [];
   const rackMap = new Map();
+  // Tracks the last seen maxRU per rack key so later rows can omit it
+  const maxRUByKey = new Map();
 
   rows.forEach((row, idx) => {
-    const lineNum = idx + 2; // 1-based + header row
-    const rackName = (row['Rack Name'] || row['rack_name'] || row['rackName'] || '').trim();
+    const lineNum    = idx + 2; // 1-based + header row
+    const rackName   = (row['Rack Name']   || row['rack_name']   || row['rackName']   || '').trim();
     const rackNumber = (row['Rack Number'] || row['rack_number'] || row['rackNumber'] || '').trim();
-    const maxRU = parseInt(row['Max RU'] || row['max_ru'] || row['maxRU'] || '42', 10);
-    const startRU = parseInt(row['Start RU'] || row['start_ru'] || row['startRU'] || '0', 10);
-    const endRU = parseInt(row['End RU'] || row['end_ru'] || row['endRU'] || '0', 10);
-    const type = (row['Type'] || row['type'] || 'generic').trim().toLowerCase().replace(/\s+/g, '_');
-    const label = (row['Label'] || row['label'] || '').trim();
+    const startRU    = parseInt(row['Start RU'] || row['start_ru'] || row['startRU'] || '0', 10);
+    const label      = (row['Label'] || row['label'] || '').trim();
+
+    // End RU: blank means same as Start RU (1 RU)
+    const endRURaw = (row['End RU'] || row['end_ru'] || row['endRU'] || '').toString().trim();
+    const endRU    = endRURaw === '' ? startRU : parseInt(endRURaw, 10);
+
+    // Max RU: only needs to appear on the first row per rack; fill-forward otherwise
+    const maxRURaw = (row['Max RU'] || row['max_ru'] || row['maxRU'] || '').toString().trim();
+    const key      = `${rackName}__${rackNumber}`;
+    if (maxRURaw !== '') {
+      const parsed = parseInt(maxRURaw, 10);
+      if (!isNaN(parsed)) maxRUByKey.set(key, parsed);
+    }
+    const maxRU = maxRUByKey.get(key) || 42;
+
+    // Type: fuzzy-matched so partial input like "ca" → "cable_manager"
+    const typeRaw = (row['Type'] || row['type'] || '').trim();
+    const type    = resolveType(typeRaw);
 
     if (!rackName) { errors.push(`Row ${lineNum}: Missing Rack Name.`); return; }
-    if (!startRU || !endRU) { errors.push(`Row ${lineNum}: Missing Start RU or End RU.`); return; }
+    if (!startRU)  { errors.push(`Row ${lineNum}: Missing Start RU.`);  return; }
 
-    const key = `${rackName}__${rackNumber}`;
     if (!rackMap.has(key)) {
-      rackMap.set(key, { rackName, rackNumber: rackNumber || '', maxRU: isNaN(maxRU) ? 42 : maxRU, items: [] });
+      rackMap.set(key, { rackName, rackNumber: rackNumber || '', maxRU, items: [] });
     }
     const rack = rackMap.get(key);
-    // Update maxRU if this row specifies a larger one
-    if (!isNaN(maxRU) && maxRU > rack.maxRU) rack.maxRU = maxRU;
+    // Update maxRU if this row specifies a value
+    if (maxRURaw !== '' && maxRU > rack.maxRU) rack.maxRU = maxRU;
 
-    rack.items.push(normalizeItemRange({ startRU, endRU, type: ALL_TYPES.includes(type) ? type : 'generic', label }));
+    rack.items.push(normalizeItemRange({ startRU, endRU, type, label }));
   });
 
   const racks = Array.from(rackMap.values());

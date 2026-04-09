@@ -93,18 +93,46 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
   // ── Download Excel Template ─────────────────────────────────────────────────
   function downloadTemplate() {
     const wb = XLSX.utils.book_new();
+
+    // ── Rack Data sheet ─────────────────────────────────────────────────────
+    // Notes:
+    //   Max RU   – only fill on the FIRST row for each rack; leave blank on subsequent rows
+    //   End RU   – leave blank for 1-RU items (defaults to Start RU automatically)
+    //   Type     – must match a value from the Valid Types sheet (partial/fuzzy match supported)
     const ws = XLSX.utils.aoa_to_sheet([
-      ['Rack Name', 'Rack Number', 'Max RU', 'Start RU', 'End RU', 'Type', 'Label'],
-      ['Main Rack', '1', 42, 42, 42, 'patch_panel',   'Patch Panel A'],
-      ['Main Rack', '1', 42, 41, 41, 'cable_manager', 'Horizontal Manager'],
-      ['Main Rack', '1', 42, 40, 38, 'switch',        'Core Switch'],
-      ['Main Rack', '1', 42,  2,  1, 'ups',           'UPS 2200VA'],
+      ['Rack Name', 'Rack Number', 'Max RU (first row only)', 'Start RU', 'End RU (blank = 1RU)', 'Type', 'Label'],
+      ['Main Rack', '1', 42, 42, '',  'patch_panel',   'Patch Panel A'],
+      ['Main Rack', '1', '',  41, '',  'cable_manager', 'Horizontal Manager'],
+      ['Main Rack', '1', '',  40, 38, 'switch',         'Core Switch'],
+      ['Main Rack', '1', '',  10,  8, 'server',         'Web Server 01'],
+      ['Main Rack', '1', '',   2,  1, 'ups',            'UPS 2200VA'],
     ]);
-    ws['!cols'] = [18, 12, 8, 9, 8, 16, 28].map(wch => ({ wch }));
+
+    // Column widths
+    ws['!cols'] = [24, 13, 22, 9, 22, 16, 28].map(wch => ({ wch }));
+
+    // Data validation dropdown for Type column (F2:F1000)
+    const typeList = ALL_TYPES.join(',');
+    ws['!dataValidations'] = [
+      {
+        sqref: 'F2:F1000',
+        type: 'list',
+        formula1: `"${typeList}"`,
+        showDropDown: false,
+        showErrorMessage: false,
+      },
+    ];
+
     XLSX.utils.book_append_sheet(wb, ws, 'Rack Data');
-    const wsT = XLSX.utils.aoa_to_sheet([['Valid Types (use in Type column)'], ...ALL_TYPES.map(t => [t])]);
-    wsT['!cols'] = [{ wch: 28 }];
+
+    // ── Valid Types reference sheet ─────────────────────────────────────────
+    const wsT = XLSX.utils.aoa_to_sheet([
+      ['Type Key (use in Type column)', 'Notes'],
+      ...ALL_TYPES.map(t => [t, t === 'empty' ? 'Leave slot empty' : '']),
+    ]);
+    wsT['!cols'] = [{ wch: 30 }, { wch: 22 }];
     XLSX.utils.book_append_sheet(wb, wsT, 'Valid Types');
+
     XLSX.writeFile(wb, 'rack-builder-template.xlsx');
     closeMenu();
   }
