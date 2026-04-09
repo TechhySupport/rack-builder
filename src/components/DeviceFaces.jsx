@@ -81,6 +81,14 @@ export function PatchPanelFace({ x, y, w, h }) {
   );
 }
 
+// Voice patch panel reuses the same 24-port patch panel SVG
+export function VoiceFace({ x, y, w, h }) {
+  return (
+    <image href={patchPanelSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  SWITCH  (48-Ports-Network-Switch-Generic.svg)
 // ─────────────────────────────────────────────────────────────────────────────

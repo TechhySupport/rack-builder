@@ -6,6 +6,7 @@
 import { buildRackRows } from '../utils/rackUtils';
 import {
   PatchPanelFace,
+  VoiceFace,
   SwitchFace,
   Catalyst2960Face,
   ExtremeSwitchFace,
@@ -70,6 +71,7 @@ function renderFace(item, ruCount, x, y, w, h) {
     case 'tray': case 'shelf': case 'desktop': case 'monitor':
                           return <ShelfFace         key={y} {...props} />;
     case 'nvr':           return <ServerFace        key={y} {...props} />;
+    case 'voice':         return <VoiceFace          key={y} {...props} />;
     case 'empty':         return <EmptyFace         key={y} x={x} y={y} w={w} h={h} />;
     default:
       return <GenericFace key={y} {...props} typeStr={item.type?.replace(/_/g, ' ')} />;
