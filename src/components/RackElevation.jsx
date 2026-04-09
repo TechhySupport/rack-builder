@@ -8,6 +8,7 @@ import {
   PatchPanelFace,
   SwitchFace,
   Catalyst2960Face,
+  ExtremeSwitchFace,
   CableManagerFace,
   ServerFace,
   UPSFace,
@@ -59,6 +60,7 @@ function renderFace(item, ruCount, x, y, w, h) {
     case 'patch_panel':   return <PatchPanelFace   key={y} {...props} />;
     case 'switch':        return <SwitchFace        key={y} {...props} />;
     case 'catalyst_2960': return <Catalyst2960Face  key={y} {...props} />;
+    case 'extreme_switch': return <ExtremeSwitchFace key={y} {...props} />;
     case 'cable_manager': return <CableManagerFace  key={y} {...props} />;
     case 'server':        return <ServerFace        key={y} {...props} />;
     case 'ups':           return <UPSFace           key={y} {...props} />;

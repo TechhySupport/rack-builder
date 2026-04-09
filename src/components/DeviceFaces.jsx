@@ -230,15 +230,20 @@ export function ServerFace({ x, y, w, h, label, ruCount }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
 //  UPS  (uses APC_SmartUPS_SC_450.svg asset)
+//  Uses foreignObject so CSS object-fit:fill reliably fills the slot width
 // ─────────────────────────────────────────────────────────────────────────────
-export function UPSFace({ x, y, w, h, label, ruCount }) {
+export function UPSFace({ x, y, w, h }) {
   return (
-    <g>
-      <image href={upsSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="none" />
-    </g>
+    <foreignObject x={x} y={y} width={w} height={h} style={{ overflow: 'hidden' }}>
+      <img
+        // eslint-disable-next-line react/no-unknown-property
+        xmlns="http://www.w3.org/1999/xhtml"
+        src={upsSvg}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+      />
+    </foreignObject>
   );
 }
 
@@ -384,12 +389,31 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  CISCO CATALYST 2960 / EXTREME SWITCH  (uses extreme_switch.svg asset)
 // ─────────────────────────────────────────────────────────────────────────────
-export function Catalyst2960Face({ x, y, w, h, label, ruCount }) {
+export function Catalyst2960Face({ x, y, w, h }) {
   return (
-    <g>
-      <image href={extremeSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="none" />
-    </g>
+    <foreignObject x={x} y={y} width={w} height={h} style={{ overflow: 'hidden' }}>
+      <img
+        // eslint-disable-next-line react/no-unknown-property
+        xmlns="http://www.w3.org/1999/xhtml"
+        src={extremeSvg}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+      />
+    </foreignObject>
+  );
+}
+
+export function ExtremeSwitchFace({ x, y, w, h }) {
+  return (
+    <foreignObject x={x} y={y} width={w} height={h} style={{ overflow: 'hidden' }}>
+      <img
+        // eslint-disable-next-line react/no-unknown-property
+        xmlns="http://www.w3.org/1999/xhtml"
+        src={extremeSvg}
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+      />
+    </foreignObject>
   );
 }
 
