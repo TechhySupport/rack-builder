@@ -77,11 +77,8 @@ function CenterLabel({ x, y, w, h, label, typeStr, ruCount }) {
 export function PatchPanelFace({ x, y, w, h, label, ruCount }) {
   return (
     <g>
-      {/* SVG asset fills the faceplate area */}
       <image href={patchPanelSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="xMidYMid meet" />
-      {/* Label overlaid at the right side */}
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} />
+        preserveAspectRatio="none" />
     </g>
   );
 }
@@ -93,8 +90,7 @@ export function SwitchFace({ x, y, w, h, label, ruCount }) {
   return (
     <g>
       <image href={switchSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="xMidYMid meet" />
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} maxChars={28} />
+        preserveAspectRatio="none" />
     </g>
   );
 }
@@ -146,7 +142,6 @@ function SwitchFaceDetailed({ x, y, w, h, label, ruCount }) {
         fill="#0f1218" rx={1} />
       <rect x={mgmtX + 15} y={mgmtY + 3} width={mgmtW - 18} height={3}
         fill="#1a4a28" rx={0.5} />
-      <InlineLabel x={x} y={y} w={mgmtX - x - 6} h={h} label={label} maxChars={28} />
     </Face>
   );
 }
@@ -178,10 +173,6 @@ export function CableManagerFace({ x, y, w, h, label, ruCount }) {
   return (
     <Face x={x} y={y} w={w} h={h} fill="#9098a2">
       {slots}
-      <text x={x + w / 2} y={y + h / 2}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={7} fill="#c8ccd4" fontFamily="'Courier New', monospace"
-      >{trunc(label, 28)}</text>
     </Face>
   );
 }
@@ -234,7 +225,6 @@ export function ServerFace({ x, y, w, h, label, ruCount }) {
       <circle cx={statusX} cy={y + h / 2 - 4} r={2.5} fill={C_LED_GRN} opacity={0.8} />
       {/* HDD LED */}
       <circle cx={statusX} cy={y + h / 2 + 4} r={2.5} fill="#f59e0b" opacity={0.5} />
-      <InlineLabel x={x} y={y} w={statusX - x - 6} h={h} label={label} maxChars={24} />
     </Face>
   );
 }
@@ -247,8 +237,7 @@ export function UPSFace({ x, y, w, h, label, ruCount }) {
   return (
     <g>
       <image href={upsSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="xMidYMid meet" />
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} />
+        preserveAspectRatio="none" />
     </g>
   );
 }
@@ -291,7 +280,6 @@ export function PDUFace({ x, y, w, h, label, ruCount }) {
         letterSpacing={0.5}
       >PDU</text>
       {outlets}
-      <InlineLabel x={labelX - 20} y={y} w={w - (labelX - x) + 20} h={h} label={label} maxChars={20} />
     </Face>
   );
 }
@@ -312,8 +300,6 @@ export function ShelfFace({ x, y, w, h, label, ruCount }) {
       {/* Bottom lip */}
       <rect x={x + 2} y={y + h - 4} width={w - 4} height={3}
         fill="#a8adb8" rx={0.5} />
-      <CenterLabel x={x} y={y} w={w} h={h - 6} label={label}
-        ruCount={ruCount} typeStr={ruCount >= 2 ? 'SHELF' : null} />
     </Face>
   );
 }
@@ -326,8 +312,7 @@ export function FibreFace({ x, y, w, h, label, ruCount }) {
   return (
     <g>
       <image href={fibreSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="xMidYMid meet" />
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} />
+        preserveAspectRatio="none" />
     </g>
   );
 }
@@ -368,7 +353,6 @@ export function FirewallFace({ x, y, w, h, label, ruCount }) {
         fontSize={6} fill="#22c55e" fontFamily="'Courier New', monospace"
         letterSpacing={0.5}
       >FW</text>
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} maxChars={24} />
     </Face>
   );
 }
@@ -393,8 +377,6 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
         fill="#1e2228" stroke="#404858" strokeWidth={0.5} />
       <circle cx={x + w - 12} cy={y + h / 2} r={1.5}
         fill={C_LED_GRN} opacity={0.6} />
-      <CenterLabel x={x + stripeW + 12} y={y} w={w - stripeW - 28} h={h}
-        label={label} ruCount={ruCount} typeStr={typeStr} />
     </Face>
   );
 }
@@ -406,8 +388,7 @@ export function Catalyst2960Face({ x, y, w, h, label, ruCount }) {
   return (
     <g>
       <image href={extremeSvg} x={x} y={y} width={w} height={h}
-        preserveAspectRatio="xMidYMid meet" />
-      <InlineLabel x={x} y={y} w={w} h={h} label={label} maxChars={28} />
+        preserveAspectRatio="none" />
     </g>
   );
 }
