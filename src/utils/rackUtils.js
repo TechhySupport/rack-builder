@@ -21,11 +21,21 @@ export const typeConfig = {
 
 export const ALL_TYPES = Object.keys(typeConfig);
 
-// ─── Normalise a single item's RU range so high >= low ─────────────────────────
+// ─── Convert a type key to a human-readable default label ─────────────────────
+export function defaultLabel(type) {
+  if (!type || type === 'empty') return '';
+  // Use typeConfig display label if available, otherwise title-case the key
+  if (typeConfig[type]) return typeConfig[type].label;
+  return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ─── Normalise a single item’s RU range so high >= low ─────────────────────
 export function normalizeItemRange(item) {
-  const hi = Math.max(Number(item.startRU), Number(item.endRU));
-  const lo = Math.min(Number(item.startRU), Number(item.endRU));
-  return { ...item, startRU: hi, endRU: lo };
+  const hi  = Math.max(Number(item.startRU), Number(item.endRU));
+  const lo  = Math.min(Number(item.startRU), Number(item.endRU));
+  // Auto-fill label from type if blank
+  const label = (item.label && item.label.trim()) ? item.label.trim() : defaultLabel(item.type);
+  return { ...item, startRU: hi, endRU: lo, label };
 }
 
 // ─── Normalise an entire rack object ───────────────────────────────────────────
@@ -137,7 +147,6 @@ export function validateRackData(racks) {
     }
     rack.items.forEach((item, ii) => {
       const iPrefix = `${prefix} item #${ii + 1} ("${item.label || 'unlabelled'}")`;
-      if (!item.label) messages.push(`${iPrefix}: Missing label.`);
       if (!item.type) messages.push(`${iPrefix}: Missing type.`);
       if (isNaN(item.startRU) || isNaN(item.endRU)) messages.push(`${iPrefix}: Invalid RU values.`);
       else {

@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { ALL_TYPES, typeConfig, normalizeItemRange } from '../utils/rackUtils';
+import { ALL_TYPES, typeConfig, normalizeItemRange, defaultLabel } from '../utils/rackUtils';
 
 function newItemTemplate(maxRU) {
-  return { startRU: maxRU, endRU: maxRU, type: 'generic', label: 'New Device' };
+  return { startRU: maxRU, endRU: maxRU, type: 'generic', label: defaultLabel('generic') };
 }
 
 /** Draggable resize handle for <th> columns */
@@ -54,7 +54,14 @@ export default function RackEditorTable({ rack, onChange }) {
   function updateItem(idx, field, value) {
     const items = rack.items.map((item, i) => {
       if (i !== idx) return item;
-      const updated = { ...item, [field]: ['startRU', 'endRU'].includes(field) ? Number(value) : value };
+      let updated = { ...item, [field]: ['startRU', 'endRU'].includes(field) ? Number(value) : value };
+      // When type changes, auto-update label if it still matches the old type's default
+      if (field === 'type') {
+        const oldDefault = defaultLabel(item.type);
+        if (!item.label || item.label === oldDefault) {
+          updated = { ...updated, label: '' }; // let normalizeItemRange fill from new type
+        }
+      }
       return normalizeItemRange(updated);
     });
     onChange({ ...rack, items });
