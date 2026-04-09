@@ -4,7 +4,11 @@
  * Each component receives: { x, y, w, h, label, ruCount }
  * and returns SVG <g> content ready to embed inside an <svg>.
  */
-// SVG assets no longer used as <image> — replaced by inline SVG components for reliable fill
+import patchPanelSvg from '../assets/24-port_patch_panel.svg';
+import switchSvg     from '../assets/48-Ports-Network-Switch-Generic.svg';
+import extremeSvg    from '../assets/extreme_switch.svg';
+import fibreSvg      from '../assets/Fibre.svg';
+// upsSvg replaced with inline SVG for reliable scaling
 
 // ── Palette ─────────────────────────────────────────────────────────────────
 const C_STROKE  = '#878d96';
@@ -68,104 +72,22 @@ function CenterLabel({ x, y, w, h, label, typeStr, ruCount }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  PATCH PANEL  – 24-port 1U panel (inline SVG)
+//  PATCH PANEL  (24-port_patch_panel.svg)
 // ─────────────────────────────────────────────────────────────────────────────
 export function PatchPanelFace({ x, y, w, h }) {
-  const numPorts = 24;
-  const margin   = 8;
-  const portArea = w - margin * 2 - 30; // 30px reserved for right label zone
-  const pW       = Math.max(4, Math.floor((portArea - (numPorts - 1) * 2) / numPorts));
-  const gap      = Math.floor((portArea - pW * numPorts) / (numPorts - 1));
-  const pH       = Math.max(6, h - 8);
-  const py       = y + (h - pH) / 2;
-
-  const ports = Array.from({ length: numPorts }, (_, i) => {
-    const px = x + margin + i * (pW + gap);
-    return (
-      <g key={i}>
-        {/* Port socket */}
-        <rect x={px} y={py + 1} width={pW} height={pH - 2}
-          fill="#1a1e28" stroke="#3a3f50" strokeWidth={0.4} rx={0.5} />
-        {/* Keystone clip line */}
-        <rect x={px + 1} y={py + 2} width={pW - 2} height={2}
-          fill="#2e3480" rx={0.3} />
-        {/* Link LED */}
-        <rect x={px} y={py - 1} width={pW} height={1.5}
-          fill={C_LED_GRN} opacity={0.7} rx={0.3} />
-      </g>
-    );
-  });
-
   return (
-    <Face x={x} y={y} w={w} h={h} fill="#b0b6c0">
-      {ports}
-      {/* Model badge right side */}
-      <rect x={x + w - 28} y={y + 2} width={26} height={h - 4}
-        fill="#888e98" rx={1} />
-      <text x={x + w - 15} y={y + h / 2}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={5.5} fill="#e8eaf0"
-        fontFamily="'Courier New', monospace" letterSpacing={0.3}
-      >24PT</text>
-    </Face>
+    <image href={patchPanelSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SWITCH  – 48-port generic network switch (inline SVG)
+//  SWITCH  (48-Ports-Network-Switch-Generic.svg)
 // ─────────────────────────────────────────────────────────────────────────────
 export function SwitchFace({ x, y, w, h }) {
-  const cols  = 24;
-  const rows  = 2;
-  const mgmtW = 32;
-  const avail = w - 14 - mgmtW - 6;
-  const gap   = 2;
-  const pW    = Math.max(4, Math.floor((avail - gap * (cols - 1)) / cols));
-  const pH    = Math.max(5, Math.floor((h - 10) / rows) - 1);
-  const x0    = x + 7;
-
-  const ports = [];
-  for (let r = 0; r < rows; r++) {
-    const py = y + 4 + r * (pH + 2);
-    for (let c = 0; c < cols; c++) {
-      const px = x0 + c * (pW + gap);
-      ports.push(
-        <g key={`${r}-${c}`}>
-          <rect x={px} y={py} width={pW} height={pH}
-            fill="#1a1e2a" stroke="#30364a" strokeWidth={0.3} rx={0.5} />
-          <rect x={px + 0.5} y={py + 0.5} width={pW - 1} height={1.5}
-            fill="rgba(255,255,255,0.08)" />
-          {/* LEDs */}
-          <rect x={px} y={py - 2} width={Math.floor(pW / 2) - 0.5} height={1.5}
-            fill={C_LED_GRN} opacity={0.75} rx={0.3} />
-          <rect x={px + Math.floor(pW / 2) + 0.5} y={py - 2} width={Math.floor(pW / 2) - 0.5} height={1.5}
-            fill="#f59e0b" opacity={0.4} rx={0.3} />
-        </g>
-      );
-    }
-  }
-
-  const mgmtX = x + w - mgmtW - 3;
-  const mgmtY = y + 3;
-  const mgmtH = h - 6;
-
   return (
-    <Face x={x} y={y} w={w} h={h} fill="#b8bec8">
-      {ports}
-      {/* Management section */}
-      <rect x={mgmtX} y={mgmtY} width={mgmtW} height={mgmtH}
-        fill="#8890a0" rx={1} />
-      {/* Console port */}
-      <circle cx={mgmtX + 7} cy={y + h / 2} r={3}
-        fill="#1a1e28" stroke="#404858" strokeWidth={0.5} />
-      <circle cx={mgmtX + 7} cy={y + h / 2} r={1.2}
-        fill="#505868" />
-      {/* Display */}
-      <rect x={mgmtX + 13} y={mgmtY + 2} width={mgmtW - 15} height={mgmtH - 4}
-        fill="#0a0e14" rx={1} />
-      <rect x={mgmtX + 14} y={mgmtY + 3} width={mgmtW - 17} height={2.5}
-        fill="#1a4828" rx={0.5} />
-    </Face>
+    <image href={switchSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
   );
 }
 
@@ -470,47 +392,12 @@ export function ShelfFace({ x, y, w, h, label, ruCount }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  FIBRE PANEL  – LC/SC patch panel style (inline SVG)
+//  FIBRE PANEL  (Fibre.svg)
 // ─────────────────────────────────────────────────────────────────────────────
 export function FibreFace({ x, y, w, h }) {
-  const numPorts = 12;
-  const margin   = 8;
-  const portArea = w - margin * 2 - 28;
-  const pW       = Math.max(6, Math.floor((portArea - (numPorts - 1) * 3) / numPorts));
-  const gap      = Math.floor((portArea - pW * numPorts) / (numPorts - 1));
-  const pH       = Math.max(7, h - 8);
-  const py       = y + (h - pH) / 2;
-
-  const ports = Array.from({ length: numPorts }, (_, i) => {
-    const px = x + margin + i * (pW + gap);
-    return (
-      <g key={i}>
-        {/* LC duplex port body */}
-        <rect x={px} y={py} width={pW} height={pH}
-          fill="#1a1e28" stroke="#3a3f50" strokeWidth={0.4} rx={1} />
-        {/* Fibre connector (cyan = single-mode look) */}
-        <circle cx={px + pW / 2 - 1.5} cy={py + pH / 2} r={1.5}
-          fill="#0ea5e9" opacity={0.9} />
-        <circle cx={px + pW / 2 + 1.5} cy={py + pH / 2} r={1.5}
-          fill="#0ea5e9" opacity={0.9} />
-        {/* Activity LED */}
-        <rect x={px} y={py - 1.5} width={pW} height={1.5}
-          fill="#0ea5e9" opacity={0.6} rx={0.3} />
-      </g>
-    );
-  });
-
   return (
-    <Face x={x} y={y} w={w} h={h} fill="#22262e">
-      {ports}
-      {/* Fibre badge */}
-      <rect x={x + w - 26} y={y + 2} width={24} height={h - 4}
-        fill="#0c1520" rx={1} />
-      <text x={x + w - 14} y={y + h / 2}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={5} fill="#0ea5e9" fontFamily="'Courier New', monospace" letterSpacing={0.3}
-      >LC 12</text>
-    </Face>
+    <image href={fibreSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
   );
 }
 
@@ -579,90 +466,21 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  EXTREME SWITCH / CATALYST 2960  – Extreme Networks 48-port style (inline SVG)
+//  CISCO (catalyst_2960) – uses generic 48-port switch SVG
+//  EXTREME SWITCH – uses extreme_switch.svg
 // ─────────────────────────────────────────────────────────────────────────────
-function ExtremeBody({ x, y, w, h }) {
-  const cols   = 24;
-  const rows   = 2;
-  const mgmtW  = 36;
-  const sfpW   = 20;
-  const avail  = w - 14 - mgmtW - sfpW - 10;
-  const gap    = 2;
-  const pW     = Math.max(4, Math.floor((avail - gap * (cols - 1)) / cols));
-  const pH     = Math.max(4, Math.floor((h - 10) / rows) - 1);
-  const x0     = x + 7;
-
-  const ports = [];
-  for (let r = 0; r < rows; r++) {
-    const py = y + 4 + r * (pH + 2);
-    for (let c = 0; c < cols; c++) {
-      const px = x0 + c * (pW + gap);
-      ports.push(
-        <g key={`${r}-${c}`}>
-          <rect x={px} y={py} width={pW} height={pH}
-            fill="#0f1318" stroke="#252a38" strokeWidth={0.3} rx={0.5} />
-          <rect x={px + 0.5} y={py + 0.5} width={pW - 1} height={1.2}
-            fill="rgba(255,255,255,0.07)" />
-          {/* Green link / amber activity LEDs */}
-          <rect x={px} y={py - 2} width={Math.floor(pW / 2) - 0.5} height={1.5}
-            fill="#22c55e" opacity={0.8} rx={0.3} />
-          <rect x={px + Math.ceil(pW / 2) + 0.5} y={py - 2} width={Math.floor(pW / 2) - 0.5} height={1.5}
-            fill="#f59e0b" opacity={0.35} rx={0.3} />
-        </g>
-      );
-    }
-  }
-
-  // SFP uplink ports
-  const sfpX = x0 + cols * (pW + gap) + 4;
-  const sfpPH = Math.max(4, Math.floor((h - 10) / rows) - 1);
-  for (let r = 0; r < rows; r++) {
-    const py = y + 4 + r * (sfpPH + 2);
-    for (let s = 0; s < 2; s++) {
-      const sx = sfpX + s * (9);
-      ports.push(
-        <g key={`sfp-${r}-${s}`}>
-          <rect x={sx} y={py} width={7} height={sfpPH}
-            fill="#181c24" stroke="#30384a" strokeWidth={0.3} rx={0.5} />
-          <rect x={sx + 1} y={py + 1} width={5} height={sfpPH - 2}
-            fill="#0a0e16" rx={0.3} />
-        </g>
-      );
-    }
-  }
-
-  // Management panel
-  const mgmtX = x + w - mgmtW - 4;
+export function Catalyst2960Face({ x, y, w, h }) {
   return (
-    <Face x={x} y={y} w={w} h={h} fill="#1e2330">
-      {ports}
-      {/* Management section */}
-      <rect x={mgmtX} y={y + 2} width={mgmtW} height={h - 4}
-        fill="#151820" rx={1} />
-      {/* Console RJ45 */}
-      <rect x={mgmtX + 3} y={y + (h - 7) / 2} width={8} height={7}
-        fill="#0a0d12" stroke="#30384a" strokeWidth={0.4} rx={0.5} />
-      {/* Mgmt LED row */}
-      {['#22c55e', '#22c55e', '#f59e0b'].map((c, i) => (
-        <circle key={i} cx={mgmtX + 18 + i * 5} cy={y + h / 2} r={1.8}
-          fill={c} opacity={0.8} />
-      ))}
-      {/* Extreme Networks badge */}
-      <text x={mgmtX + mgmtW / 2} y={y + h - 4}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={4.5} fill="#5060c0" fontFamily="system-ui, sans-serif" fontWeight={700}
-        letterSpacing={0.2}
-      >EXTREME</text>
-    </Face>
+    <image href={switchSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
   );
 }
 
-export function Catalyst2960Face({ x, y, w, h }) {
-  return <ExtremeBody x={x} y={y} w={w} h={h} />;
-}
-
 export function ExtremeSwitchFace({ x, y, w, h }) {
-  return <ExtremeBody x={x} y={y} w={w} h={h} />;
+  return (
+    <image href={extremeSvg} x={x} y={y} width={w} height={h}
+      preserveAspectRatio="none" />
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

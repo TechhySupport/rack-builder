@@ -1,7 +1,8 @@
 // ─── Type Configuration ────────────────────────────────────────────────────────
 export const typeConfig = {
   switch:        { label: 'Switch',          icon: '/assets/switch.svg',        className: 'type-switch' },
-  catalyst_2960: { label: 'Catalyst 2960',   icon: '/assets/switch.svg',        className: 'type-switch' },
+  catalyst_2960: { label: 'Cisco',          icon: '/assets/switch.svg',        className: 'type-switch' },
+  extreme_switch: { label: 'Extreme Switch', icon: '/assets/switch.svg',        className: 'type-switch' },
   extreme_switch: { label: 'Extreme Switch',  icon: '/assets/switch.svg',        className: 'type-switch' },
   patch_panel:   { label: 'Patch Panel',   icon: '/assets/patch-panel.svg',   className: 'type-patch' },
   cable_manager: { label: 'Cable Manager', icon: '/assets/cable-manager.svg', className: 'type-cable' },
