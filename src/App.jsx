@@ -10,7 +10,7 @@ import { RackElevation } from './components/RackElevation';
 import RackFrame from './components/RackFrame';
 import { sampleData } from './data/sampleRacks';
 import { validateRackData, normalizeRackData } from './utils/rackUtils';
-import { exportAllRacksAsZip } from './utils/exportAllPng';
+import { exportAllRacksAsZip, exportCurrentRackBothViews } from './utils/exportAllPng';
 import './styles.css';
 
 function normalizeAll(racks) {
@@ -126,9 +126,14 @@ export default function App() {
     frameRef.current = refObj ?? null;
   }, []);
 
-  async function handleExportAllPng(mode = 'diagram') {
-    const el = mode === 'simple' ? allRacksSimpleRef.current : allRacksContainerRef.current;
-    await exportAllRacksAsZip(racks, el, mode);
+  async function handleExportCurrentPng() {
+    const diagramEl = allRacksContainerRef.current?.children[activeIndex];
+    const simpleEl  = allRacksSimpleRef.current?.children[activeIndex];
+    await exportCurrentRackBothViews(diagramEl, simpleEl, activeRack?.rackName);
+  }
+
+  async function handleExportAllPng() {
+    await exportAllRacksAsZip(racks, allRacksContainerRef.current, allRacksSimpleRef.current);
   }
 
   const allMessages = [...importErrors, ...validationMsgs];
@@ -144,8 +149,8 @@ export default function App() {
           activeRack={activeRack}
           frameRef={frameRef}
           onImport={handleImport}
+          onExportCurrentPng={handleExportCurrentPng}
           onExportAllPng={handleExportAllPng}
-          onExportAllPngSimple={() => handleExportAllPng('simple')}
         />
         <div className="toolbar-vdiv" />
         <SampleSelector onLoad={handleLoadSample} />
