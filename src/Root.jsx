@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import App from './App.jsx';
 import LandingPage from './components/LandingPage.jsx';
+import ComingSoonLanding from './components/ComingSoonLanding.jsx';
 import AuthPage from './components/AuthPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import { supabase } from './lib/supabase.js';
@@ -18,6 +19,9 @@ export default function Root() {
     () => Boolean(new URLSearchParams(window.location.search).get('invite')),
   );
   const [checkingSession, setCheckingSession] = useState(Boolean(supabase));
+  const [previewAccess, setPreviewAccess] = useState(
+    () => sessionStorage.getItem('rackedview-preview-access') === 'granted',
+  );
 
   function openAuth(returnView) {
     setAuthReturnView(returnView);
@@ -57,5 +61,6 @@ export default function Root() {
   if (session) return <Dashboard session={session} onOpenBuilder={() => setAuthenticatedView('builder')} onSignOut={() => supabase?.auth.signOut()} />;
   if (view === 'auth') return <AuthPage onBack={() => setView(authReturnView)} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
+  if (!previewAccess) return <ComingSoonLanding onUnlock={() => setPreviewAccess(true)} />;
   return <LandingPage onGetStarted={() => setView('builder')} onSignIn={() => openAuth('landing')} />;
 }

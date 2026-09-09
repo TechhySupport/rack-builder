@@ -200,6 +200,23 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     return Math.max(1, Math.min(activeRack.maxRU || 42, (activeRack.maxRU || 42) - Math.floor((y - 44) / 28)));
   }
 
+  function getDropGuideStyle(ru) {
+    const rackRoot = canvasRackRef.current;
+    const rackSvg = rackRoot?.querySelector('svg[aria-label^="Rack elevation"]');
+    if (!rackRoot || !rackSvg || !activeRack) return null;
+    const rootRect = rackRoot.getBoundingClientRect();
+    const svgRect = rackSvg.getBoundingClientRect();
+    const viewBox = rackSvg.viewBox.baseVal;
+    const maxRU = activeRack.maxRU || 42;
+    return {
+      left: `${svgRect.left - rootRect.left + (48 / viewBox.width) * svgRect.width}px`,
+      top: `${svgRect.top - rootRect.top + ((44 + (maxRU - ru) * 28) / viewBox.height) * svgRect.height}px`,
+      width: `${(452 / viewBox.width) * svgRect.width}px`,
+      height: `${(28 / viewBox.height) * svgRect.height}px`,
+      transform: 'none',
+    };
+  }
+
   function moveDevice(itemIndex, targetRU) {
     if (!activeRack || itemIndex < 0 || !targetRU) return;
     const item = activeRack.items[itemIndex];
@@ -307,6 +324,7 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
   }
 
   const allMessages = [...importErrors, ...validationMsgs];
+  const dropGuideStyle = dropRU ? getDropGuideStyle(dropRU) : null;
 
   return (
     <div className="app-shell">
@@ -322,7 +340,7 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
       <div className="canva-workspace">
         <aside className="tool-rail">{[{ id: 'devices', icon: Network, label: 'Devices' }, { id: 'elements', icon: Sparkles, label: 'Elements' }, { id: 'wiring', icon: Cable, label: 'Wiring' }, { id: 'text', icon: Type, label: 'Text' }, { id: 'shapes', icon: Shapes, label: 'Shapes' }, { id: 'images', icon: Image, label: 'Images' }, { id: 'tools', icon: Wrench, label: 'Tools' }, { id: 'templates', icon: LayoutTemplate, label: 'Templates' }].map(({ id, icon: Icon, label }) => <button key={id} className={activeTool === id ? 'active' : ''} onClick={() => setActiveTool(id)}><Icon size={20} /><span>{label}</span></button>)}</aside>
         <aside className="element-library"><div className="library-title"><h2>{activeTool === 'devices' ? 'Devices' : activeTool[0].toUpperCase() + activeTool.slice(1)}</h2><button aria-label="Close library">x</button></div><div className="library-search"><Search size={16} /><input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder={activeTool === 'devices' ? 'Search devices...' : `Search ${activeTool}...`} /><SlidersHorizontal size={16} /></div>{activeTool === 'devices' ? <div className="device-groups">{[{ title: 'Network', types: ['switch', 'catalyst_2960', 'patch_panel', 'firewall'] }, { title: 'Compute', types: ['server', 'nvr'] }, { title: 'Power', types: ['ups', 'pdu'] }, { title: 'Other', types: ['generic', 'cable_manager'] }].map(({ title, types }) => <section key={title}><h3>{title}</h3><div>{types.filter((type) => defaultLabel(type).toLowerCase().includes(deviceSearch.toLowerCase())).map((type) => <button key={type} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-device-type', type); }} onClick={() => addDevice(type)}><span className={`device-art device-art--${type}`} /><b>{defaultLabel(type)}</b></button>)}</div></section>)}</div> : activeTool === 'wiring' ? <ToolList title="Network" items={[['Ethernet', Cable], ['Fibre', LineChart], ['Patch Cable', Cable], ['Power Cable', Cable], ['Connection Line', ArrowRight]]} onAdd={(name) => addCanvasElement('wire', name)} /> : activeTool === 'text' ? <ToolList title="Add text" items={[['Heading', Type], ['Subheading', Type], ['Label', Type], ['Note', FileText]]} onAdd={(name) => addCanvasElement('text', name, { value: name === 'Heading' ? 'Rack heading' : name === 'Note' ? 'Add a note' : name })} /> : activeTool === 'shapes' ? <ToolList title="Shapes" items={[['Rectangle', Square], ['Circle', Circle], ['Line', LineChart], ['Arrow', ArrowRight]]} onAdd={(name) => addCanvasElement('shape', name)} /> : activeTool === 'images' ? <label className="image-upload"><Upload size={24} /><b>Upload image</b><span>Drag an image here or choose an image</span><input type="file" accept="image/*" onChange={addImage} /></label> : activeTool === 'tools' ? <ToolList title="Tools" items={[['Select', MousePointer2], ['Pen', PenTool], ['Highlighter', Highlighter], ['Eraser', Eraser], ['Measure', Wrench]]} onAdd={(name) => name === 'Eraser' ? setCanvasElements([]) : addCanvasElement('annotation', name)} /> : <div className="template-list">{['Standard Network Rack', 'Server Rack', 'Office Rack', 'Core Switch Rack', 'Small Cabinet'].map((name) => <button key={name} onClick={() => handleLoadSample(sampleData.racks)}><span className="template-art" /><b>{name}</b><small>Use layout</small></button>)}</div>}</aside>
-        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} /> Drag devices between rack units, or add one from the library.</div><div ref={canvasRackRef} className="canvas-rack" onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type')) { event.preventDefault(); event.dataTransfer.dropEffect = getDropRU(event) ? 'copy' : 'none'; setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={setMovingItemIndex} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && <div className="rack-drop-guide" style={{ top: `${44 + ((activeRack.maxRU - dropRU) * 28)}px` }}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div></main>
+        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} /> Drag devices between rack units, or add one from the library.</div><div ref={canvasRackRef} className="canvas-rack" onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type')) { event.preventDefault(); event.dataTransfer.dropEffect = getDropRU(event) ? 'copy' : 'none'; setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={setMovingItemIndex} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && dropGuideStyle && <div className="rack-drop-guide" style={dropGuideStyle}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div></main>
         <aside className="properties-panel"><div className="properties-title"><div><p>Selected rack</p><h2>Device Properties</h2></div><button title="Properties"><PenTool size={17} /></button></div>{activeRack ? <><div className="properties-preview"><span className="device-art device-art--switch" /><b>{activeRack.items[0]?.label || 'Select a device'}</b></div><RackEditorTable rack={activeRack} onChange={handleRackChange} /></> : <p className="properties-empty">Create a rack to start editing its properties.</p>}</aside>
       </div>
 
