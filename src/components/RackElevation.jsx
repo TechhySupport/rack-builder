@@ -100,7 +100,7 @@ function trunc(s, max) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function RackElevation({ rack, innerRef }) {
+export function RackElevation({ rack, innerRef, onStartMoveItem }) {
   if (!rack) return null;
 
   const maxRU  = rack.maxRU || 42;
@@ -121,7 +121,18 @@ export function RackElevation({ rack, innerRef }) {
 
     if (row.type === 'item') {
       deviceElements.push(
-        renderFace(row.item, row.height, DEVICE_X, currentY + 1, DEVICE_W, rowH - 2)
+        <g
+          key={`device-${idx}`}
+          className={onStartMoveItem ? 'rack-device-draggable' : undefined}
+          onPointerDown={(event) => {
+            if (!onStartMoveItem) return;
+            event.preventDefault();
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+            onStartMoveItem(rack.items.indexOf(row.item));
+          }}
+        >
+          {renderFace(row.item, row.height, DEVICE_X, currentY + 1, DEVICE_W, rowH - 2)}
+        </g>
       );
       // External callout label
       if (row.item.label) {

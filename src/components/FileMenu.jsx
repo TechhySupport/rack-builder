@@ -17,7 +17,7 @@ const IconChevron = () => (
   </svg>
 );
 
-export default function FileMenu({ racks, activeRack, frameRef, onImport, onExportCurrentPng, onExportAllPng }) {
+export default function FileMenu({ racks, activeRack, frameRef, onImport, onRequireAuth, onExportCurrentPng, onExportAllPng }) {
   const [open,       setOpen]       = useState(false);
   const [jsonModal,  setJsonModal]  = useState(false);
   const [jsonText,   setJsonText]   = useState('');
@@ -39,6 +39,15 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
   }, [open]);
 
   function closeMenu() { setOpen(false); }
+
+  function runExport(action) {
+    if (onRequireAuth) {
+      closeMenu();
+      onRequireAuth();
+      return;
+    }
+    action();
+  }
 
   // ── JSON Import ─────────────────────────────────────────────────────────────
   function openJsonModal() { closeMenu(); setJsonModal(true); }
@@ -227,28 +236,28 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onExpo
 
             {/* ── Export Data ── */}
             <div className="fmd-section-label">Export — Data</div>
-            <button className="fmd-item" role="menuitem" disabled={!hasActive} onClick={exportJsonCurrent}>
-              Export JSON — Current Rack
+            <button className="fmd-item" role="menuitem" disabled={!hasActive} onClick={() => runExport(exportJsonCurrent)}>
+              Export JSON — Current Rack{onRequireAuth ? ' (sign in)' : ''}
             </button>
-            <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={exportJsonAll}>
-              Export JSON — All Racks
+            <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={() => runExport(exportJsonAll)}>
+              Export JSON — All Racks{onRequireAuth ? ' (sign in)' : ''}
             </button>
-            <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={exportExcel}>
-              Export Excel — All Racks
+            <button className="fmd-item" role="menuitem" disabled={!hasRacks} onClick={() => runExport(exportExcel)}>
+              Export Excel — All Racks{onRequireAuth ? ' (sign in)' : ''}
             </button>
 
             <div className="fmd-divider" />
 
             {/* ── Export Diagram ── */}
             <div className="fmd-section-label">Export — Diagram</div>
-            <button className="fmd-item" role="menuitem" disabled={!hasActive || exporting} onClick={exportPngCurrent}>
-              Export PNG — Current Rack
+            <button className="fmd-item" role="menuitem" disabled={!hasActive || exporting} onClick={() => runExport(exportPngCurrent)}>
+              Export PNG — Current Rack{onRequireAuth ? ' (sign in)' : ''}
             </button>
-            <button className="fmd-item" role="menuitem" disabled={!hasRacks || exporting} onClick={exportPngAll}>
-              Export PNG — All Racks (.zip)
+            <button className="fmd-item" role="menuitem" disabled={!hasRacks || exporting} onClick={() => runExport(exportPngAll)}>
+              Export PNG — All Racks (.zip){onRequireAuth ? ' (sign in)' : ''}
             </button>
-            <button className="fmd-item" role="menuitem" disabled={!hasActive} onClick={() => { window.print(); closeMenu(); }}>
-              Print
+            <button className="fmd-item" role="menuitem" disabled={!hasActive} onClick={() => runExport(() => { window.print(); closeMenu(); })}>
+              Print{onRequireAuth ? ' (sign in)' : ''}
             </button>
           </div>
         )}

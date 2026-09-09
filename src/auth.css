@@ -1,0 +1,15 @@
+.forgot-password {
+  display: block;
+  margin: 14px auto 0;
+  border: 0;
+  background: transparent;
+  color: #54708c;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.forgot-password:hover {
+  color: #047be3;
+  text-decoration: underline;
+}

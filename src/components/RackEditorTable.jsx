@@ -1,47 +1,16 @@
-import { useState, useRef, useCallback } from 'react';
 import { ALL_TYPES, typeConfig, normalizeItemRange, defaultLabel } from '../utils/rackUtils';
 
-function newItemTemplate(maxRU) {
-  return { startRU: maxRU, endRU: maxRU, type: 'generic', label: defaultLabel('generic') };
-}
-
-/** Draggable resize handle for <th> columns */
-function ColResizeHandle({ onDragStart }) {
-  return (
-    <span
-      className="col-resize-handle"
-      onMouseDown={onDragStart}
-    />
-  );
+function newItemTemplate(rack) {
+  const occupied = new Set();
+  rack.items.forEach((item) => {
+    for (let ru = item.endRU; ru <= item.startRU; ru += 1) occupied.add(ru);
+  });
+  const startRU = Array.from({ length: rack.maxRU || 42 }, (_, index) => (rack.maxRU || 42) - index)
+    .find((ru) => !occupied.has(ru)) || 1;
+  return { startRU, endRU: startRU, type: 'generic', label: defaultLabel('generic') };
 }
 
 export default function RackEditorTable({ rack, onChange }) {
-  const [editingField, setEditingField] = useState(null);
-  const [colWidths, setColWidths] = useState({ label: 110, type: 90, startRU: 72, endRU: 72 });
-  const dragCol   = useRef(null);
-  const dragStartX = useRef(0);
-  const dragStartW = useRef(0);
-
-  const startColResize = useCallback((col, e) => {
-    e.preventDefault();
-    dragCol.current   = col;
-    dragStartX.current = e.clientX;
-    dragStartW.current = colWidths[col];
-
-    const onMove = (ev) => {
-      const delta = ev.clientX - dragStartX.current;
-      const newW  = Math.max(40, dragStartW.current + delta);
-      setColWidths(prev => ({ ...prev, [dragCol.current]: newW }));
-    };
-    const onUp = () => {
-      dragCol.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }, [colWidths]);
-
   if (!rack) return null;
 
   // ── Rack-level fields ──────────────────────────────────────────────────────
@@ -68,7 +37,7 @@ export default function RackEditorTable({ rack, onChange }) {
   }
 
   function addItem() {
-    const items = [...rack.items, newItemTemplate(rack.maxRU || 42)];
+    const items = [...rack.items, newItemTemplate(rack)];
     onChange({ ...rack, items });
   }
 
@@ -88,12 +57,9 @@ export default function RackEditorTable({ rack, onChange }) {
     onChange({ ...rack, items });
   }
 
-  const isEditing = (row, col) => editingField && editingField.row === row && editingField.col === col;
-
   return (
     <div className="editor-section">
-      {/* Rack meta */}
-      <div className="rack-meta-row">
+      <div className="rack-meta-row editor-rack-settings">
         <label className="meta-label">
           Rack Name
           <input
@@ -124,86 +90,30 @@ export default function RackEditorTable({ rack, onChange }) {
         <button className="btn btn-sm btn-ghost" onClick={sortItems}>Sort ↓ RU</button>
       </div>
 
-      {/* Items table */}
-      <div className="editor-table-wrap">
-        <table className="editor-table" style={{ tableLayout: 'fixed', width: '100%' }}>
-          <colgroup>
-            <col style={{ width: colWidths.label }} />
-            <col style={{ width: colWidths.type }} />
-            <col style={{ width: colWidths.startRU }} />
-            <col style={{ width: colWidths.endRU }} />
-            <col style={{ width: 60 }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={{ position: 'relative' }}>Label<ColResizeHandle onDragStart={e => startColResize('label', e)} /></th>
-              <th style={{ position: 'relative' }}>Type<ColResizeHandle onDragStart={e => startColResize('type', e)} /></th>
-              <th style={{ position: 'relative' }}>Start RU<ColResizeHandle onDragStart={e => startColResize('startRU', e)} /></th>
-              <th style={{ position: 'relative' }}>End RU<ColResizeHandle onDragStart={e => startColResize('endRU', e)} /></th>
-              <th className="col-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rack.items.map((item, idx) => (
-              <tr key={idx} className={item.type === 'empty' ? 'row-empty' : ''}>
-                <td>
-                  <input
-                    className="table-input"
-                    value={item.label || ''}
-                    onChange={e => updateItem(idx, 'label', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <select
-                    className="table-select"
-                    value={item.type || 'generic'}
-                    onChange={e => updateItem(idx, 'type', e.target.value)}
-                  >
-                    {ALL_TYPES.map(t => (
-                      <option key={t} value={t}>{typeConfig[t].label}</option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input
-                    className="table-input table-input--num"
-                    type="number"
-                    min="1"
-                    max={rack.maxRU || 99}
-                    value={item.startRU}
-                    onChange={e => updateItem(idx, 'startRU', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    className="table-input table-input--num"
-                    type="number"
-                    min="1"
-                    max={rack.maxRU || 99}
-                    value={item.endRU}
-                    onChange={e => updateItem(idx, 'endRU', e.target.value)}
-                  />
-                </td>
-                <td className="col-actions">
-                  <button
-                    className="btn-icon btn-icon--copy"
-                    title="Duplicate"
-                    onClick={() => duplicateItem(idx)}
-                  >⊕</button>
-                  <button
-                    className="btn-icon btn-icon--delete"
-                    title="Delete"
-                    onClick={() => deleteItem(idx)}
-                  >✕</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="items-header">
+        <div><strong>Rack items</strong><span>{rack.items.length} {rack.items.length === 1 ? 'item' : 'items'}</span></div>
+        <button className="btn btn-sm btn-primary" onClick={addItem}>Add item</button>
       </div>
 
-      <div className="editor-footer">
-        <button className="btn btn-sm btn-outline" onClick={addItem}>+ Add Item</button>
+      <div className="item-card-list">
+        {rack.items.length === 0 ? (
+          <div className="items-empty"><strong>Start building your rack</strong><span>Add your first device, patch panel, or UPS to place it on the elevation.</span><button className="btn btn-sm btn-outline" onClick={addItem}>Add first item</button></div>
+        ) : rack.items.map((item, idx) => (
+          <section key={idx} className={`item-card${item.type === 'empty' ? ' item-card--empty' : ''}`}>
+            <div className="item-card-topline"><span>Item {idx + 1}</span><div><button className="item-action" onClick={() => duplicateItem(idx)}>Duplicate</button><button className="item-action item-action--danger" onClick={() => deleteItem(idx)}>Remove</button></div></div>
+            <label className="item-field item-field--wide">Device type
+              <select className="item-control" value={item.type || 'generic'} onChange={e => updateItem(idx, 'type', e.target.value)}>{ALL_TYPES.map(t => <option key={t} value={t}>{typeConfig[t].label}</option>)}</select>
+            </label>
+            <label className="item-field item-field--wide">Label
+              <input className="item-control" value={item.label || ''} placeholder="e.g. Core Switch 01" onChange={e => updateItem(idx, 'label', e.target.value)} />
+            </label>
+            <div className="item-ru-fields">
+              <label className="item-field">Top RU<input className="item-control" type="number" min="1" max={rack.maxRU || 99} value={item.startRU} onChange={e => updateItem(idx, 'startRU', e.target.value)} /></label>
+              <label className="item-field">Bottom RU<input className="item-control" type="number" min="1" max={rack.maxRU || 99} value={item.endRU} onChange={e => updateItem(idx, 'endRU', e.target.value)} /></label>
+              <span className="ru-size">{Math.abs(item.startRU - item.endRU) + 1}U device</span>
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );

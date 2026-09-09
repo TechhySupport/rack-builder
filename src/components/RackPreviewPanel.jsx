@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import RackFrame from './RackFrame';
 import { RackElevation } from './RackElevation';
 
-export default function RackPreviewPanel({ rack, onExportRef }) {
+export default function RackPreviewPanel({ rack, onExportRef, onStartMoveItem }) {
   const frameRef = useRef(null);
   const [diagramMode, setDiagramMode] = useState(true); // true = technical elevation
 
@@ -61,7 +61,7 @@ export default function RackPreviewPanel({ rack, onExportRef }) {
       </div>
 
       {diagramMode
-        ? <RackElevation rack={rack} innerRef={frameRef} />
+        ? <RackElevation rack={rack} innerRef={frameRef} onStartMoveItem={onStartMoveItem} />
         : <RackFrame rack={rack} innerRef={frameRef} />
       }
     </div>
