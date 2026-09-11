@@ -214,7 +214,7 @@ export default function Dashboard({ session, onOpenBuilder, onSignOut }) {
   }
 
   const racksBySite = racks.reduce((result, rack) => ({ ...result, [rack.site_id]: (result[rack.site_id] || 0) + 1 }), {});
-  const documentedRacks = racks.filter((rack) => rack.doc_status === 'documented').length;
+  const documentedRacks = racks.filter((rack) => rack.doc_status === 'current').length;
   const workspaceMembers = members.filter((member) => member.organisation_id === activeOrganisation?.id);
   const workspaceDevices = devices.filter((device) => device.organisation_id === activeOrganisation?.id);
   const workspaceTasks = tasks.filter((task) => task.organisation_id === activeOrganisation?.id);

@@ -4,12 +4,6 @@
  * Each component receives: { x, y, w, h, label, ruCount }
  * and returns SVG <g> content ready to embed inside an <svg>.
  */
-import patchPanelSvg from '../assets/24-port_patch_panel.svg';
-import switchSvg     from '../assets/48-Ports-Network-Switch-Generic.svg';
-import extremeSvg    from '../assets/extreme_switch.svg';
-import fibreSvg      from '../assets/Fibre.svg';
-// upsSvg replaced with inline SVG for reliable scaling
-
 // ── Palette ─────────────────────────────────────────────────────────────────
 const C_STROKE  = '#878d96';
 const C_PORT    = '#22262e';
@@ -17,6 +11,8 @@ const C_LABEL   = '#2e3240';
 const C_SUB     = '#6b7280';
 const C_LED_GRN = '#22c55e';
 const C_SHINE   = 'rgba(255,255,255,0.32)';
+
+import { connectionPointsForItem } from '../utils/rackUtils';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function trunc(s, max) {
@@ -71,31 +67,135 @@ function CenterLabel({ x, y, w, h, label, typeStr, ruCount }) {
   );
 }
 
+export function devicePortProfile(item, face = item?.connectionFace) {
+  const allPoints = connectionPointsForItem(item);
+  const points = face
+    ? allPoints.filter((point) => (point.face || (point.medium === 'power' ? 'rear' : 'front')) === face)
+    : allPoints;
+  const accents = Object.fromEntries(points.map((point) => [point.id, point.category === 'wan' ? '#ef4444' : point.category === 'power_input' ? '#f59e0b' : point.category === 'power_output' ? '#3b82f6' : undefined]));
+  const layout = {
+    fibre: [74, 0.64], patch_panel: [18, 0.62], voice: [18, 0.64],
+    switch: [26, 0.62], catalyst_2960: [26, 0.62], extreme_switch: [26, 0.62],
+    nvr: [160, 0.55], firewall: [42, 0.6], server: [0.78, 0.12],
+    pdu: [0.16, 0.7], ups: [0.62, 0.25],
+  }[item?.type] || [0.3, 0.52];
+  return { points, count: points.length, medium: points.every((point) => point.medium === 'fibre') ? 'fibre' : 'copper', bankX: layout[0], bankW: layout[1], accents };
+}
+
+function Port({ x, y, w, h, medium = 'copper', direction, name, active = false, selected = false, connected = false, accent, onSelect }) {
+  const isPower = medium === 'power';
+  const roleColor = direction === 'input' ? '#f59e0b' : '#3b82f6';
+  const color = medium === 'fibre' ? '#38bdf8' : '#2563eb';
+  const indicator = isPower ? roleColor : selected || connected ? color : accent || '#64748b';
+  const portStroke = isPower ? roleColor : selected || connected ? color : accent || '#475569';
+  const inset = Math.max(1, Math.min(w, h) * 0.13);
+  const slotWidth = Math.max(0.8, Math.min(1.8, w * 0.12));
+  const slotHeight = Math.max(1.4, h * 0.26);
+  return (
+    <g className={onSelect ? 'rack-port-selectable' : undefined} onPointerDown={(event) => { if (onSelect) { event.preventDefault(); event.stopPropagation(); onSelect(); } }}>
+      <title>{isPower ? `${name} - power ${direction}` : name}</title>
+      <rect x={x} y={y} width={w} height={h} fill="#111827" stroke={portStroke} strokeWidth={selected ? 1.6 : connected ? 1.2 : isPower || accent ? 0.9 : 0.5} rx={isPower ? 1.8 : 0.7} />
+      {isPower
+        ? <>
+            <rect x={x + inset} y={y + inset} width={Math.max(1, w - inset * 2)} height={Math.max(1, h - inset * 2)} fill="#202630" stroke={roleColor} strokeWidth={0.45} opacity={0.95} rx={1} />
+            <rect x={x + w * 0.32 - slotWidth / 2} y={y + h * 0.24} width={slotWidth} height={slotHeight} fill={roleColor} rx={0.35} />
+            <rect x={x + w * 0.68 - slotWidth / 2} y={y + h * 0.24} width={slotWidth} height={slotHeight} fill={roleColor} rx={0.35} />
+            <circle cx={x + w / 2} cy={y + h * 0.72} r={Math.max(0.7, Math.min(1.5, Math.min(w, h) * 0.1))} fill={roleColor} />
+          </>
+        : medium === 'fibre'
+        ? <><rect x={x + w * 0.2} y={y + h * 0.22} width={w * 0.22} height={h * 0.56} fill="#0f172a" /><rect x={x + w * 0.58} y={y + h * 0.22} width={w * 0.22} height={h * 0.56} fill="#0f172a" /></>
+        : <rect x={x + 1} y={y + 1} width={w - 2} height={Math.max(2, h * 0.38)} fill={accent && !selected && !connected ? accent : '#334155'} opacity={accent && !selected && !connected ? 0.75 : 1} rx={0.35} />}
+      <circle cx={x + w / 2} cy={y - 2} r={1.15} fill={active ? indicator : '#64748b'} />
+    </g>
+  );
+}
+
+function PortBank({ x, y, w, h, points = [], medium = 'copper', compact = false, selectedPort, connectedPorts = [], onSelectPort, accents = {} }) {
+  const columns = Math.max(1, points.length > 24 ? 24 : Math.ceil(points.length / 2));
+  const rows = Math.max(1, Math.ceil(points.length / columns));
+  const gap = compact ? 2 : 3;
+  const portW = Math.max(4, (w - gap * (columns - 1)) / columns);
+  const portH = Math.max(5, (h - gap * (rows - 1)) / rows);
+  return points.map((point, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    return <Port key={point.id} x={x + col * (portW + gap)} y={y + row * (portH + gap)} w={portW} h={portH} medium={point.medium || medium} direction={point.direction} name={point.name || point.id} active={index % 5 !== 4} selected={selectedPort === point.id} connected={connectedPorts.includes(point.id)} accent={accents[point.id]} onSelect={onSelectPort ? () => onSelectPort(point.id) : undefined} />;
+  });
+}
+
+export function RearDeviceFace({ x, y, w, h, label, type, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, accents } = devicePortProfile({ ...connectionConfig, type }, 'rear');
+  const powerPoints = points.filter((point) => point.medium === 'power');
+  const dataPoints = points.filter((point) => point.medium !== 'power');
+  const powerWidth = powerPoints.length ? Math.min(w * 0.28, Math.max(42, powerPoints.length * 18)) : 0;
+  const dataWidth = Math.max(0, w - powerWidth - 66);
+
+  return (
+    <Face x={x} y={y} w={w} h={h} fill="#aeb5bf">
+      <rect x={x + 8} y={y + 5} width={34} height={h - 10} fill="#89919d" rx={1} />
+      {Array.from({ length: 4 }, (_, index) => {
+        const lineY = y + 8 + index * Math.max(2, (h - 16) / 4);
+        return <line key={index} x1={x + 13} x2={x + 37} y1={lineY} y2={lineY} stroke="#5f6875" strokeWidth={1} />;
+      })}
+      {dataPoints.length > 0 && (
+        <PortBank x={x + 50} y={y + 5} w={dataWidth} h={h - 10} points={dataPoints} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      )}
+      {powerPoints.length > 0 && (
+        <PortBank x={x + w - powerWidth - 8} y={y + 5} w={powerWidth} h={h - 10} points={powerPoints} medium="power" compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      )}
+      {points.length === 0 && (
+        <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#596270" fontFamily="'Courier New', monospace">NO REAR CONNECTIONS</text>
+      )}
+      <title>{`${label || type || 'Device'} rear`}</title>
+    </Face>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  PATCH PANEL  (24-port_patch_panel.svg)
 // ─────────────────────────────────────────────────────────────────────────────
-export function PatchPanelFace({ x, y, w, h }) {
+export function PatchPanelFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents } = devicePortProfile(connectionConfig);
+  const bankW = Math.min(w * 0.72, count > 24 ? w * 0.82 : w * 0.62);
+  const bankX = x + 18;
   return (
-    <image href={patchPanelSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
+    <Face x={x} y={y} w={w} h={h} fill="#d4d8df">
+      <rect x={x + 5} y={y + 4} width={7} height={h - 8} fill="#94a3b8" rx={1} />
+      <PortBank x={bankX} y={y + 5} w={bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <text x={x + w - 10} y={y + h / 2} textAnchor="end" dominantBaseline="middle" fontSize={6} fill="#334155" fontFamily="'Courier New', monospace">CAT6A</text>
+      <text x={x + w - 10} y={y + h - 5} textAnchor="end" fontSize={5} fill="#64748b" fontFamily="'Courier New', monospace">{count} PORT</text>
+    </Face>
   );
 }
 
 // Voice patch panel reuses the same 24-port patch panel SVG
-export function VoiceFace({ x, y, w, h }) {
+export function VoiceFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents } = devicePortProfile(connectionConfig);
   return (
-    <image href={patchPanelSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
+    <Face x={x} y={y} w={w} h={h} fill="#ddd6c8">
+      <PortBank x={x + 18} y={y + 5} w={w * 0.64} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <text x={x + w - 10} y={y + h / 2} textAnchor="end" dominantBaseline="middle" fontSize={6} fill="#6b4f28" fontFamily="'Courier New', monospace">VOICE</text>
+    </Face>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SWITCH  (48-Ports-Network-Switch-Generic.svg)
 // ─────────────────────────────────────────────────────────────────────────────
-export function SwitchFace({ x, y, w, h }) {
+export function SwitchFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, medium, accents } = devicePortProfile(connectionConfig);
+  const isFibre = medium === 'fibre';
+  const bankW = count > 24 ? w * 0.78 : w * 0.62;
   return (
-    <image href={switchSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
+    <Face x={x} y={y} w={w} h={h} fill="#263445">
+      <rect x={x + 8} y={y + 5} width={10} height={h - 10} fill="#15202e" rx={1} />
+      <circle cx={x + 13} cy={y + h / 2 - 4} r={2} fill="#22c55e" />
+      <circle cx={x + 13} cy={y + h / 2 + 4} r={2} fill="#38bdf8" />
+      <PortBank x={x + 26} y={y + 5} w={bankW} h={h - 10} points={points} medium={medium} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <rect x={x + w - 46} y={y + 5} width={36} height={h - 10} fill="#17202c" stroke="#475569" strokeWidth={0.5} rx={1} />
+      <text x={x + w - 28} y={y + h / 2 - 3} textAnchor="middle" fontSize={5} fill="#cbd5e1" fontFamily="'Courier New', monospace">{isFibre ? 'SFP+' : 'RJ45'}</text>
+      <text x={x + w - 28} y={y + h / 2 + 5} textAnchor="middle" fontSize={5} fill="#94a3b8" fontFamily="'Courier New', monospace">{count} PORT</text>
+    </Face>
   );
 }
 
@@ -184,7 +284,8 @@ export function CableManagerFace({ x, y, w, h, label, ruCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  SERVER
 // ─────────────────────────────────────────────────────────────────────────────
-export function ServerFace({ x, y, w, h, label, ruCount }) {
+export function ServerFace({ x, y, w, h, label, ruCount, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents, bankX, bankW } = devicePortProfile(connectionConfig);
   const numBays = ruCount >= 2 ? 8 : 4;
   const bayW = ruCount >= 2 ? 20 : 16;
   const bayH = Math.min(h - 8, 20);
@@ -225,6 +326,7 @@ export function ServerFace({ x, y, w, h, label, ruCount }) {
           x={ventX} y={y + 4 + i * 4} width={ventW} height={2}
           fill="#9098a4" rx={0.5} />
       ))}
+      <PortBank x={x + w * bankX} y={y + 5} w={w * bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
       {/* Power LED */}
       <circle cx={statusX} cy={y + h / 2 - 4} r={2.5} fill={C_LED_GRN} opacity={0.8} />
       {/* HDD LED */}
@@ -236,7 +338,8 @@ export function ServerFace({ x, y, w, h, label, ruCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  UPS  – APC SmartUPS rackmount style (inline SVG)
 // ─────────────────────────────────────────────────────────────────────────────
-export function UPSFace({ x, y, w, h, ruCount }) {
+export function UPSFace({ x, y, w, h, ruCount, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents, bankX, bankW } = devicePortProfile(connectionConfig);
   const isTall = ruCount >= 2;
   const bodyH  = h - 4;
   const bodyY  = y + 2;
@@ -294,6 +397,7 @@ export function UPSFace({ x, y, w, h, ruCount }) {
         textAnchor="middle" dominantBaseline="middle"
         fontSize={4} fill="#6a7888" fontFamily="'Courier New', monospace"
       >BATTERY</text>
+      <PortBank x={x + w * bankX} y={bodyY + 5} w={w * bankW} h={bodyH - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
 
       {/* Vent slots */}
       {Array.from({ length: ventSlots }, (_, i) => (
@@ -340,9 +444,10 @@ export function UPSFace({ x, y, w, h, ruCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  PDU
 // ─────────────────────────────────────────────────────────────────────────────
-export function PDUFace({ x, y, w, h, label, ruCount }) {
+export function PDUFace({ x, y, w, h, label, ruCount, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents, bankX, bankW } = devicePortProfile(connectionConfig);
   const outletDiam = Math.min(h - 8, 14);
-  const outletCount = Math.floor((w - 60) / (outletDiam + 6));
+  const outletCount = 0;
   const ox0 = x + 8;
   const cy = y + h / 2;
 
@@ -375,7 +480,44 @@ export function PDUFace({ x, y, w, h, label, ruCount }) {
         letterSpacing={0.5}
       >PDU</text>
       {outlets}
+      <PortBank x={x + w * bankX} y={y + 5} w={w * bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
     </Face>
+  );
+}
+
+export function VerticalPDUFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const profile = devicePortProfile(connectionConfig);
+  const points = profile.points.filter((point) => point.medium === 'power');
+  const { accents } = profile;
+  const top = y + 26;
+  const usableHeight = Math.max(1, h - 36);
+  const spacing = usableHeight / Math.max(1, points.length);
+  const outletHeight = Math.max(5, Math.min(12, spacing - 4));
+
+  return (
+    <g>
+      <rect x={x} y={y} width={w} height={h} fill="#202833" stroke="#566273" strokeWidth={1} rx={2} />
+      <rect x={x + 2} y={y + 2} width={w - 4} height={h - 4} fill="#111827" stroke="#334155" strokeWidth={0.5} rx={1} />
+      <text x={x + w / 2} y={y + 14} textAnchor="middle" dominantBaseline="middle" fontSize={6} fill="#cbd5e1" fontFamily="'Courier New', monospace" fontWeight={700}>PDU</text>
+      {points.map((point, index) => (
+        <Port
+          key={point.id}
+          x={x + 3}
+          y={top + index * spacing + (spacing - outletHeight) / 2}
+          w={w - 6}
+          h={outletHeight}
+          medium="power"
+          direction={point.direction}
+          name={point.name || point.id}
+          active
+          selected={selectedPort === point.id}
+          connected={connectedPorts.includes(point.id)}
+          accent={accents[point.id]}
+          onSelect={onSelectPort ? () => onSelectPort(point.id) : undefined}
+        />
+      ))}
+      <title>{`${label || 'PDU'} vertical power rail`}</title>
+    </g>
   );
 }
 
@@ -402,45 +544,29 @@ export function ShelfFace({ x, y, w, h, label, ruCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  FIBRE PANEL  (Fibre.svg)
 // ─────────────────────────────────────────────────────────────────────────────
-export function FibreFace({ x, y, w, h }) {
+export function FibreFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents } = devicePortProfile(connectionConfig);
   return (
-    <image href={fibreSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
+    <Face x={x} y={y} w={w} h={h} fill="#193b4c">
+      <rect x={x + 8} y={y + 4} width={54} height={h - 8} fill="#102a37" rx={1} />
+      <text x={x + 35} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fontSize={6} fill="#7dd3fc" fontFamily="'Courier New', monospace">FIBRE</text>
+      <PortBank x={x + 74} y={y + 5} w={Math.min(w - 98, w * 0.64)} h={h - 10} points={points} medium="fibre" compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <text x={x + w - 9} y={y + h / 2} textAnchor="end" dominantBaseline="middle" fontSize={5} fill="#bae6fd" fontFamily="'Courier New', monospace">LC {count}</text>
+    </Face>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FIREWALL (distinguished from generic)
 // ─────────────────────────────────────────────────────────────────────────────
-export function FirewallFace({ x, y, w, h, label, ruCount }) {
-  const numPorts = 8;
-  const pW = 8, pH = Math.min(10, h - 10), gX = 4;
-  const portAreaW = numPorts * (pW + gX) - gX;
-  const px0 = x + 10;
-  const portY = y + (h - pH) / 2;
-
-  const ports = [];
-  for (let p = 0; p < numPorts; p++) {
-    const px = px0 + p * (pW + gX);
-    ports.push(
-      <g key={p}>
-        <rect x={px} y={portY} width={pW} height={pH} fill="#1e2a1a" rx={1} />
-        <rect x={px + 1} y={portY + 1} width={pW - 2} height={3}
-          fill="#284022" rx={0.5} />
-        {/* Link LED */}
-        <rect x={px} y={portY - 3} width={pW} height={2}
-          fill="#22c55e" rx={0.5} opacity={0.7} />
-      </g>
-    );
-  }
-
+export function FirewallFace({ x, y, w, h, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents, bankX, bankW } = devicePortProfile(connectionConfig);
   return (
     <Face x={x} y={y} w={w} h={h} fill="#c8d0c8">
-      {ports}
-      {/* Firewall badge */}
-      <rect x={px0 + portAreaW + 8} y={y + 3} width={28} height={h - 6}
+      <PortBank x={x + (bankX < 1 ? w * bankX : bankX)} y={y + 5} w={w * bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <rect x={x + w - 40} y={y + 3} width={28} height={h - 6}
         fill="#1a2a1a" rx={1} />
-      <text x={px0 + portAreaW + 22} y={y + h / 2}
+      <text x={x + w - 26} y={y + h / 2}
         textAnchor="middle" dominantBaseline="middle"
         fontSize={6} fill="#22c55e" fontFamily="'Courier New', monospace"
         letterSpacing={0.5}
@@ -452,7 +578,8 @@ export function FirewallFace({ x, y, w, h, label, ruCount }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  GENERIC / VOICE / DESKTOP / MONITOR / NVR / TRAY / UNKNOWN
 // ─────────────────────────────────────────────────────────────────────────────
-export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
+export function GenericFace({ x, y, w, h, label, ruCount, typeStr, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents } = devicePortProfile(connectionConfig);
   // Decorative horizontal vent-like stripes on left quarter
   const stripeCount = Math.floor((h - 4) / 5);
   const stripeW = Math.round(w * 0.22);
@@ -464,6 +591,7 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
           x={x + 8} y={y + 3 + i * 5} width={stripeW} height={2.5}
           fill="#9098a4" rx={0.5} />
       ))}
+      <PortBank x={x + w * 0.3} y={y + 5} w={w * 0.52} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
       {/* Status LED */}
       <circle cx={x + w - 12} cy={y + h / 2} r={3}
         fill="#1e2228" stroke="#404858" strokeWidth={0.5} />
@@ -473,22 +601,27 @@ export function GenericFace({ x, y, w, h, label, ruCount, typeStr }) {
   );
 }
 
+export function NVRFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
+  const { points, count, accents, bankX, bankW } = devicePortProfile(connectionConfig);
+  return (
+    <Face x={x} y={y} w={w} h={h} fill="#242a33">
+      <rect x={x + 8} y={y + 4} width={138} height={h - 8} fill="#111827" rx={1} />
+      <text x={x + 77} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill="#e2e8f0" fontFamily="'Courier New', monospace">NVR / PoE</text>
+      <PortBank x={x + (bankX < 1 ? w * bankX : bankX)} y={y + 5} w={w * bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+    </Face>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  CISCO (catalyst_2960) – uses generic 48-port switch SVG
 //  EXTREME SWITCH – uses extreme_switch.svg
 // ─────────────────────────────────────────────────────────────────────────────
-export function Catalyst2960Face({ x, y, w, h }) {
-  return (
-    <image href={switchSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
-  );
+export function Catalyst2960Face(props) {
+  return <SwitchFace {...props} />;
 }
 
-export function ExtremeSwitchFace({ x, y, w, h }) {
-  return (
-    <image href={extremeSvg} x={x} y={y} width={w} height={h}
-      preserveAspectRatio="none" />
-  );
+export function ExtremeSwitchFace(props) {
+  return <SwitchFace {...props} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

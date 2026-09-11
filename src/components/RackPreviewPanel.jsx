@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
+import { Cable, EyeOff } from 'lucide-react';
 import RackFrame from './RackFrame';
 import { RackElevation } from './RackElevation';
 
-export default function RackPreviewPanel({ rack, onExportRef, onStartMoveItem }) {
+export default function RackPreviewPanel({ rack, viewSide = rack?.viewSide || 'front', onExportRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties }) {
   const frameRef = useRef(null);
   const [diagramMode, setDiagramMode] = useState(true); // true = technical elevation
+  const [showDataWiring, setShowDataWiring] = useState(true);
 
   // Expose frameRef to parent via callback
   if (onExportRef) onExportRef(frameRef);
@@ -60,8 +62,34 @@ export default function RackPreviewPanel({ rack, onExportRef, onStartMoveItem })
         </div>
       </div>
 
-      {diagramMode
-        ? <RackElevation rack={rack} innerRef={frameRef} onStartMoveItem={onStartMoveItem} />
+      {(diagramMode || onPatchDevice) && (
+        <div className="rack-wiring-controls" aria-label="Wiring visibility">
+          <span>Wiring</span>
+          <div>
+            <button
+              type="button"
+              className={showDataWiring ? 'is-active' : undefined}
+              onClick={() => setShowDataWiring(true)}
+              title="Show Ethernet, fibre, and power wiring"
+            >
+              <Cable size={14} />
+              Show wiring
+            </button>
+            <button
+              type="button"
+              className={!showDataWiring ? 'is-active' : undefined}
+              onClick={() => setShowDataWiring(false)}
+              title="Hide blue Ethernet and fibre wiring; keep power visible"
+            >
+              <EyeOff size={14} />
+              Hide data wiring
+            </button>
+          </div>
+        </div>
+      )}
+
+      {diagramMode || onPatchDevice
+        ? <RackElevation rack={rack} viewSide={viewSide} showDataWiring={showDataWiring} innerRef={frameRef} onStartMoveItem={onStartMoveItem} onPatchDevice={onPatchDevice} patchSource={patchSource} onOpenProperties={onOpenProperties} onOpenRackProperties={onOpenRackProperties} />
         : <RackFrame rack={rack} innerRef={frameRef} />
       }
     </div>

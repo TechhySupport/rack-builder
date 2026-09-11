@@ -3,16 +3,17 @@ import Header from './components/Header';
 import ValidationPanel from './components/ValidationPanel';
 import RackSelector from './components/RackSelector';
 import RackPreviewPanel from './components/RackPreviewPanel';
-import RackEditorTable from './components/RackEditorTable';
 import FileMenu from './components/FileMenu';
 import SampleSelector from './components/SampleSelector';
+import DevicePropertiesModal from './components/DevicePropertiesModal';
+import RackPropertiesModal from './components/RackPropertiesModal';
 import { RackElevation } from './components/RackElevation';
 import RackFrame from './components/RackFrame';
 import { sampleData } from './data/sampleRacks';
-import { validateRackData, normalizeRackData } from './utils/rackUtils';
+import { connectionPointsForItem, defaultConnectionPointGroups, expandConnectionPointGroups, isVerticalPdu, validateRackData, normalizeRackData } from './utils/rackUtils';
 import { exportAllRacksAsZip, exportCurrentRackBothViews } from './utils/exportAllPng';
 import { supabase } from './lib/supabase.js';
-import { ArrowRight, Cable, ChevronDown, Circle, Eraser, Eye, FileText, Highlighter, Image, LayoutTemplate, LineChart, Maximize, MousePointer2, Network, PenTool, Redo2, Search, Shapes, SlidersHorizontal, Sparkles, Square, Type, Undo2, Upload, Wrench, ZoomIn } from 'lucide-react';
+import { ArrowRight, Cable, ChevronDown, Circle, Eraser, Eye, FileText, Highlighter, Image, LayoutTemplate, LineChart, Maximize, MousePointer2, Network, PenTool, Redo2, Search, Shapes, SlidersHorizontal, Sparkles, Square, Type, Undo2, Upload, Wrench, ZoomIn, ZoomOut } from 'lucide-react';
 import { defaultLabel } from './utils/rackUtils';
 import './styles.css';
 
@@ -40,8 +41,8 @@ function databaseDeviceType(type) {
   return 'custom';
 }
 
-function ToolList({ title, items, onAdd }) {
-  return <section className="tool-list"><h3>{title}</h3>{items.map(([name, Icon]) => <button key={name} onClick={() => onAdd(name)}><Icon size={18} /><span>{name}</span><b>+</b></button>)}</section>;
+function ToolList({ title, items, onAdd, kind }) {
+  return <section className="tool-list"><h3>{title}</h3>{items.map(([name, Icon]) => <button key={name} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-canvas-element', JSON.stringify({ kind, label: name })); }} onClick={() => onAdd(name)}><Icon size={18} /><span>{name}</span><b>+</b></button>)}</section>;
 }
 
 function CanvasElement({ element, onRemove }) {
@@ -52,7 +53,7 @@ function CanvasElement({ element, onRemove }) {
   return <div className={`canvas-object canvas-${element.kind}`} style={style}><button onClick={onRemove}>x</button><span>{element.value || element.label}</span></div>;
 }
 
-export default function App({ isGuest = false, onRequireAuth, onSignOut, session }) {
+export default function App({ isGuest = false, onRequireAuth, onDashboard, onSettings, onSignOut, session }) {
   const [racks, setRacks] = useState(() => {
     if (isGuest) return [createEmptyRack()];
     try {
@@ -71,10 +72,20 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
   const [savingWorkspace, setSavingWorkspace] = useState(false);
   const [workspaceSaveMessage, setWorkspaceSaveMessage] = useState('');
   const [activeTool, setActiveTool] = useState('devices');
+  const [libraryOpen, setLibraryOpen] = useState(true);
   const [deviceSearch, setDeviceSearch] = useState('');
   const [canvasElements, setCanvasElements] = useState([]);
   const [dropRU, setDropRU] = useState(null);
   const [movingItemIndex, setMovingItemIndex] = useState(null);
+  const [patchMedium, setPatchMedium] = useState(null);
+  const [patchSource, setPatchSource] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const [canvasZoom, setCanvasZoom] = useState(1);
+  const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
+  const [viewSide, setViewSide] = useState('front');
+  const [propertiesItemIndex, setPropertiesItemIndex] = useState(null);
+  const [rackPropertiesOpen, setRackPropertiesOpen] = useState(false);
   const frameRef             = useRef(null);
   const canvasRackRef        = useRef(null);
   const allRacksContainerRef = useRef(null);
@@ -114,7 +125,8 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     window.addEventListener('mouseup', onUp);
   }, [leftWidth]);
 
-  const activeRack = racks[activeIndex] || null;
+  const activeRackData = racks[activeIndex] || null;
+  const activeRack = activeRackData ? { ...activeRackData, viewSide } : null;
 
   useEffect(() => {
     if (movingItemIndex === null) return undefined;
@@ -156,12 +168,34 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     setImportErrors([]);
   }
 
-  function handleRackChange(updatedRack) {
+  function handleRackChange(updatedRack, recordHistory = true) {
     const updated = racks.map((r, i) =>
       i === activeIndex ? normalizeRackData(updatedRack) : r
     );
+    if (recordHistory) {
+      setUndoStack((history) => [...history.slice(-29), racks]);
+      setRedoStack([]);
+    }
     setRacks(updated);
     setValidationMsgs(validateRackData(updated));
+  }
+
+  function undoRackChange() {
+    const previous = undoStack.at(-1);
+    if (!previous) return;
+    setRedoStack((history) => [...history.slice(-29), racks]);
+    setRacks(previous);
+    setUndoStack((history) => history.slice(0, -1));
+    setValidationMsgs(validateRackData(previous));
+  }
+
+  function redoRackChange() {
+    const next = redoStack.at(-1);
+    if (!next) return;
+    setUndoStack((history) => [...history.slice(-29), racks]);
+    setRacks(next);
+    setRedoStack((history) => history.slice(0, -1));
+    setValidationMsgs(validateRackData(next));
   }
 
   function handleAddRack() {
@@ -181,12 +215,13 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     if (!activeRack) return;
     const occupied = new Set();
     activeRack.items.forEach((item) => {
+      if (isVerticalPdu(item)) return;
       for (let ru = item.endRU; ru <= item.startRU; ru += 1) occupied.add(ru);
     });
     const maxRU = activeRack.maxRU || 42;
     const candidates = preferredRU ? [preferredRU, ...Array.from({ length: maxRU }, (_, index) => maxRU - index)] : Array.from({ length: maxRU }, (_, index) => maxRU - index);
     const placement = candidates.find((ru) => ru >= 1 && ru <= maxRU && !occupied.has(ru)) || 1;
-    handleRackChange({ ...activeRack, items: [...activeRack.items, { startRU: placement, endRU: placement, type, label: defaultLabel(type) }] });
+    handleRackChange({ ...activeRack, items: [...activeRack.items, { startRU: placement, endRU: placement, type, label: defaultLabel(type), connectionPointsCustomized: false, connectionPoints: expandConnectionPointGroups(defaultConnectionPointGroups(type)) }] });
   }
 
   function getDropRU(event, rackRoot = event.currentTarget) {
@@ -224,14 +259,104 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     const height = Math.abs(item.startRU - item.endRU) + 1;
     const startRU = Math.min(activeRack.maxRU || 42, targetRU + height - 1);
     const endRU = startRU - height + 1;
-    const overlap = activeRack.items.some((candidate, index) => index !== itemIndex && candidate.endRU <= startRU && candidate.startRU >= endRU);
+    const overlap = activeRack.items.some((candidate, index) => index !== itemIndex && !isVerticalPdu(candidate) && candidate.endRU <= startRU && candidate.startRU >= endRU);
     if (overlap) return;
     const items = activeRack.items.map((candidate, index) => index === itemIndex ? { ...candidate, startRU, endRU } : candidate);
     handleRackChange({ ...activeRack, items });
   }
 
+  function isPatchCompatible(sourcePoint, targetPoint, medium) {
+    if (!sourcePoint || !targetPoint || sourcePoint.medium !== medium || targetPoint.medium !== medium) return false;
+    if (medium === 'power') return new Set([sourcePoint.direction, targetPoint.direction]).size === 2 && [sourcePoint.direction, targetPoint.direction].every((direction) => direction === 'input' || direction === 'output');
+    return !(sourcePoint.direction === 'input' && targetPoint.direction === 'input') && !(sourcePoint.direction === 'output' && targetPoint.direction === 'output');
+  }
+
+  function handlePatchDevice(itemIndex, port) {
+    if (!patchMedium || !activeRack) return;
+    if (patchSource === null) {
+      setPatchSource({ itemIndex, port });
+      return;
+    }
+    if (patchSource.itemIndex === itemIndex && patchSource.port === port) {
+      return;
+    }
+    const source = activeRack.items[patchSource.itemIndex];
+    const target = activeRack.items[itemIndex];
+    const sourcePoint = connectionPointsForItem(source).find((point) => point.id === patchSource.port);
+    const targetPoint = connectionPointsForItem(target).find((point) => point.id === port);
+    if (!isPatchCompatible(sourcePoint, targetPoint, patchMedium)) {
+      setWorkspaceSaveMessage(patchMedium === 'power'
+        ? 'Connect a blue power output to an orange power input.'
+        : `${patchMedium[0].toUpperCase() + patchMedium.slice(1)} patches require compatible connection-point media and direction.`);
+      return;
+    }
+    const outputSelectedSecond = patchMedium === 'power' && targetPoint.direction === 'output';
+    const fromItemIndex = outputSelectedSecond ? itemIndex : patchSource.itemIndex;
+    const fromPort = outputSelectedSecond ? port : patchSource.port;
+    const toItemIndex = outputSelectedSecond ? patchSource.itemIndex : itemIndex;
+    const toPort = outputSelectedSecond ? patchSource.port : port;
+    const connections = [...(activeRack.connections || []), {
+      id: `patch-${Date.now()}`,
+      medium: patchMedium,
+      from: fromItemIndex,
+      fromPort,
+      fromPortId: fromPort,
+      to: toItemIndex,
+      toPort,
+      toPortId: toPort,
+    }];
+    handleRackChange({ ...activeRack, connections });
+    setPatchSource(null);
+  }
+
+  function beginPatch(medium) {
+    setPatchMedium(medium);
+    setPatchSource(null);
+  }
+
+  function saveDeviceProperties(values) {
+    if (!activeRack || propertiesItemIndex === null) return;
+    const items = activeRack.items.map((item, index) => {
+      if (index !== propertiesItemIndex) return item;
+      const { ruHeight, ...properties } = values;
+      const height = Math.max(1, Number(ruHeight) || 1);
+      return { ...item, ...properties, startRU: item.endRU + height - 1 };
+    });
+    handleRackChange({ ...activeRack, items });
+    setPropertiesItemIndex(null);
+  }
+
+  function saveRackProperties(values) {
+    if (!activeRack) return;
+    handleRackChange({ ...activeRack, ...values, maxRU: Math.max(1, Number(values.maxRU) || 1) });
+    setRackPropertiesOpen(false);
+  }
+
   function addCanvasElement(kind, label, extra = {}) {
+    if (kind === 'wire' && label === 'Fibre') {
+      beginPatch('fibre');
+      return;
+    }
+    if (kind === 'wire' && (label === 'Ethernet' || label === 'Patch Cable')) {
+      beginPatch('copper');
+      return;
+    }
+    if (kind === 'wire' && label === 'Power Cable') {
+      beginPatch('power');
+      return;
+    }
     setCanvasElements((elements) => [...elements, { id: `${kind}-${Date.now()}-${elements.length}`, kind, label, x: 14 + (elements.length * 11) % 55, y: 16 + (elements.length * 13) % 62, ...extra }]);
+  }
+
+  function canvasPosition(event) {
+    const bounds = canvasRackRef.current?.getBoundingClientRect();
+    if (!bounds) return {};
+    return { x: Math.max(0, Math.min(94, ((event.clientX - bounds.left) / bounds.width) * 100)), y: Math.max(0, Math.min(92, ((event.clientY - bounds.top) / bounds.height) * 100)) };
+  }
+
+  function addCanvasElementAt(kind, label, event, extra = {}) {
+    const position = canvasPosition(event);
+    setCanvasElements((elements) => [...elements, { id: `${kind}-${Date.now()}-${elements.length}`, kind, label, ...position, ...extra }]);
   }
 
   function addImage(event) {
@@ -241,6 +366,12 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     reader.onload = () => addCanvasElement('image', file.name, { src: reader.result });
     reader.readAsDataURL(file);
     event.target.value = '';
+  }
+
+  function addDroppedImage(file, event) {
+    const reader = new FileReader();
+    reader.onload = () => addCanvasElementAt('image', file.name, event, { src: reader.result });
+    reader.readAsDataURL(file);
   }
 
   // Store the RefObject itself so FileMenu always reads the live DOM element
@@ -262,35 +393,79 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
     if (!supabase || !session) return;
     setSavingWorkspace(true);
     setWorkspaceSaveMessage('');
+    let provisionedWorkspace = false;
     const { data: memberships, error: membershipError } = await supabase
       .from('organisation_members')
       .select('organisation_id')
       .eq('user_id', session.user.id)
       .eq('status', 'active');
-    const organisationIds = (memberships || []).map((membership) => membership.organisation_id);
-    if (membershipError || organisationIds.length === 0) {
-      setWorkspaceSaveMessage(membershipError?.message || 'Create a workspace before saving rack devices.');
+    if (membershipError) {
+      setWorkspaceSaveMessage(membershipError.message);
       setSavingWorkspace(false);
       return;
     }
-    const { data: site, error: siteError } = await supabase
+
+    let organisationIds = (memberships || []).map((membership) => membership.organisation_id);
+    if (organisationIds.length === 0) {
+      const accountName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'My';
+      const { data: organisation, error: organisationError } = await supabase
+        .from('organisations')
+        .insert({ name: `${accountName}'s Workspace`, owner_id: session.user.id })
+        .select('id')
+        .single();
+      if (organisationError || !organisation) {
+        setWorkspaceSaveMessage(organisationError?.message || 'Unable to create your workspace.');
+        setSavingWorkspace(false);
+        return;
+      }
+      const { error: newMembershipError } = await supabase.from('organisation_members').insert({
+        organisation_id: organisation.id,
+        user_id: session.user.id,
+        role: 'owner',
+        status: 'active',
+      });
+      if (newMembershipError) {
+        setWorkspaceSaveMessage(newMembershipError.message);
+        setSavingWorkspace(false);
+        return;
+      }
+      organisationIds = [organisation.id];
+      provisionedWorkspace = true;
+    }
+
+    let { data: site, error: siteError } = await supabase
       .from('sites')
       .select('id, organisation_id')
       .in('organisation_id', organisationIds)
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (siteError || !site) {
-      setWorkspaceSaveMessage(siteError?.message || 'Add a site from the dashboard before saving rack devices.');
+    if (siteError) {
+      setWorkspaceSaveMessage(siteError.message);
       setSavingWorkspace(false);
       return;
+    }
+    if (!site) {
+      const siteResponse = await supabase
+        .from('sites')
+        .insert({ organisation_id: organisationIds[0], name: 'Default Site', address: null, created_by: session.user.id })
+        .select('id, organisation_id')
+        .single();
+      site = siteResponse.data;
+      siteError = siteResponse.error;
+      if (siteError || !site) {
+        setWorkspaceSaveMessage(siteError?.message || 'Unable to create a default site.');
+        setSavingWorkspace(false);
+        return;
+      }
+      provisionedWorkspace = true;
     }
 
     for (const [rackIndex, rack] of racks.entries()) {
       const builderRackKey = `local-rack-${rack.rackNumber || rackIndex + 1}`;
       const { data: savedRack, error: rackError } = await supabase
         .from('racks')
-        .upsert({ organisation_id: site.organisation_id, site_id: site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'documented', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
+        .upsert({ organisation_id: site.organisation_id, site_id: site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
         .select('id')
         .single();
       if (rackError || !savedRack) {
@@ -298,28 +473,82 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
         setSavingWorkspace(false);
         return;
       }
-      const deviceRows = rack.items.filter((item) => item.type !== 'empty').map((item, itemIndex) => ({
+      const deviceEntries = rack.items.filter((item) => item.type !== 'empty').map((item, itemIndex) => ({ item, builderDeviceKey: `${builderRackKey}-item-${itemIndex + 1}` }));
+      const deviceRows = deviceEntries.map(({ item, builderDeviceKey }, itemIndex) => ({
         organisation_id: site.organisation_id,
         rack_id: savedRack.id,
         name: item.label || `Device ${itemIndex + 1}`,
         device_type: databaseDeviceType(item.type),
+        manufacturer: item.brand || null,
+        switch_brand_id: item.switchBrandId || null,
+        device_catalog_brand_id: item.catalogBrandId || null,
+        custom_manufacturer: item.customManufacturer || null,
+        model: item.model || null,
+        switch_model_id: item.switchModelId || null,
+        device_catalog_model_id: item.catalogModelId || null,
+        custom_model: item.customModel || null,
+        connection_profile_id: item.connectionProfileId || null,
+        connection_profile_version: item.connectionProfileVersion || null,
+        connection_points_customized: Boolean(item.connectionPointsCustomized),
         ru_height: Math.abs(item.startRU - item.endRU) + 1,
         starting_ru: item.endRU,
         created_by: session.user.id,
-        builder_device_key: `${builderRackKey}-item-${itemIndex + 1}`,
+        builder_device_key: builderDeviceKey,
       }));
       if (deviceRows.length > 0) {
-        const { error: deviceError } = await supabase
+        const { data: savedDevices, error: deviceError } = await supabase
           .from('devices')
-          .upsert(deviceRows, { onConflict: 'organisation_id,builder_device_key' });
+          .upsert(deviceRows, { onConflict: 'organisation_id,builder_device_key' })
+          .select('id, builder_device_key');
         if (deviceError) {
           setWorkspaceSaveMessage(deviceError.message);
           setSavingWorkspace(false);
           return;
         }
+
+        const savedDeviceByKey = new Map((savedDevices || []).map((device) => [device.builder_device_key, device.id]));
+        const savedDeviceIds = [...savedDeviceByKey.values()];
+        const { error: clearPointsError } = await supabase
+          .from('device_connection_points')
+          .delete()
+          .in('device_id', savedDeviceIds);
+        if (clearPointsError) {
+          setWorkspaceSaveMessage(clearPointsError.message);
+          setSavingWorkspace(false);
+          return;
+        }
+
+        const connectionPointRows = deviceEntries.flatMap(({ item, builderDeviceKey }) => {
+          const deviceId = savedDeviceByKey.get(builderDeviceKey);
+          if (!deviceId) return [];
+          return connectionPointsForItem(item).map((point, pointIndex) => ({
+            organisation_id: site.organisation_id,
+            device_id: deviceId,
+            client_point_id: point.id,
+            name: point.name,
+            name_pattern: point.namePattern || null,
+            category: point.category,
+            medium: point.medium,
+            direction: point.direction,
+            face: point.face || (point.medium === 'power' ? 'rear' : 'front'),
+            speed_mbps: point.speedMbps || null,
+            poe: point.poeCapability || 'unknown',
+            connector_type: point.connectorType || null,
+            source_template_id: point.sourceTemplateId || null,
+            sort_order: pointIndex,
+          }));
+        });
+        if (connectionPointRows.length > 0) {
+          const { error: connectionPointsError } = await supabase.from('device_connection_points').insert(connectionPointRows);
+          if (connectionPointsError) {
+            setWorkspaceSaveMessage(connectionPointsError.message);
+            setSavingWorkspace(false);
+            return;
+          }
+        }
       }
     }
-    setWorkspaceSaveMessage('Rack devices saved to your workspace. You can now assign them to tasks.');
+    setWorkspaceSaveMessage(provisionedWorkspace ? 'Workspace created and rack devices saved.' : 'Rack devices saved to your workspace. You can now assign them to tasks.');
     setSavingWorkspace(false);
   }
 
@@ -328,7 +557,7 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
 
   return (
     <div className="app-shell">
-      <Header onSignOut={onSignOut} onSaveToWorkspace={session ? saveToWorkspace : undefined} savingWorkspace={savingWorkspace} />
+      <Header rackName={activeRack?.rackName} user={session?.user} onDashboard={onDashboard} onSettings={onSettings} onSignOut={onSignOut} onSaveToWorkspace={session ? saveToWorkspace : undefined} onRequireAuth={isGuest ? onRequireAuth : undefined} savingWorkspace={savingWorkspace}><div className="builder-controls"><FileMenu racks={racks} activeRack={activeRack} frameRef={frameRef} onImport={handleImport} onRequireAuth={onRequireAuth} onExportCurrentPng={handleExportCurrentPng} onExportAllPng={handleExportAllPng} /><button title="Undo rack change" aria-label="Undo" onClick={undoRackChange} disabled={!undoStack.length}><Undo2 size={16} /></button><button title="Redo rack change" aria-label="Redo" onClick={redoRackChange} disabled={!redoStack.length}><Redo2 size={16} /></button></div></Header>
       {workspaceSaveMessage && <div className="validation-bar"><div className="validation-panel">{workspaceSaveMessage}</div></div>}
       {allMessages.length > 0 && (
         <div className="validation-bar">
@@ -336,13 +565,13 @@ export default function App({ isGuest = false, onRequireAuth, onSignOut, session
         </div>
       )}
 
-      <section className="builder-titlebar"><div><p>Racks <span>/</span> {activeRack?.rackName || 'New Rack'}</p><h1>{activeRack?.rackName || 'New Rack'}</h1><small>Design, visualise and document your rack layout.</small></div><div className="builder-controls"><button title="Undo"><Undo2 size={16} /></button><button title="Redo"><Redo2 size={16} /></button><button>100% <ChevronDown size={14} /></button><button title="Zoom"><ZoomIn size={16} /></button><button title="Fit canvas"><Maximize size={16} /></button><button className="active">Front View</button><button>Rear View</button><FileMenu racks={racks} activeRack={activeRack} frameRef={frameRef} onImport={handleImport} onRequireAuth={onRequireAuth} onExportCurrentPng={handleExportCurrentPng} onExportAllPng={handleExportAllPng} /></div></section>
-      <div className="canva-workspace">
-        <aside className="tool-rail">{[{ id: 'devices', icon: Network, label: 'Devices' }, { id: 'elements', icon: Sparkles, label: 'Elements' }, { id: 'wiring', icon: Cable, label: 'Wiring' }, { id: 'text', icon: Type, label: 'Text' }, { id: 'shapes', icon: Shapes, label: 'Shapes' }, { id: 'images', icon: Image, label: 'Images' }, { id: 'tools', icon: Wrench, label: 'Tools' }, { id: 'templates', icon: LayoutTemplate, label: 'Templates' }].map(({ id, icon: Icon, label }) => <button key={id} className={activeTool === id ? 'active' : ''} onClick={() => setActiveTool(id)}><Icon size={20} /><span>{label}</span></button>)}</aside>
-        <aside className="element-library"><div className="library-title"><h2>{activeTool === 'devices' ? 'Devices' : activeTool[0].toUpperCase() + activeTool.slice(1)}</h2><button aria-label="Close library">x</button></div><div className="library-search"><Search size={16} /><input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder={activeTool === 'devices' ? 'Search devices...' : `Search ${activeTool}...`} /><SlidersHorizontal size={16} /></div>{activeTool === 'devices' ? <div className="device-groups">{[{ title: 'Network', types: ['switch', 'catalyst_2960', 'patch_panel', 'firewall'] }, { title: 'Compute', types: ['server', 'nvr'] }, { title: 'Power', types: ['ups', 'pdu'] }, { title: 'Other', types: ['generic', 'cable_manager'] }].map(({ title, types }) => <section key={title}><h3>{title}</h3><div>{types.filter((type) => defaultLabel(type).toLowerCase().includes(deviceSearch.toLowerCase())).map((type) => <button key={type} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-device-type', type); }} onClick={() => addDevice(type)}><span className={`device-art device-art--${type}`} /><b>{defaultLabel(type)}</b></button>)}</div></section>)}</div> : activeTool === 'wiring' ? <ToolList title="Network" items={[['Ethernet', Cable], ['Fibre', LineChart], ['Patch Cable', Cable], ['Power Cable', Cable], ['Connection Line', ArrowRight]]} onAdd={(name) => addCanvasElement('wire', name)} /> : activeTool === 'text' ? <ToolList title="Add text" items={[['Heading', Type], ['Subheading', Type], ['Label', Type], ['Note', FileText]]} onAdd={(name) => addCanvasElement('text', name, { value: name === 'Heading' ? 'Rack heading' : name === 'Note' ? 'Add a note' : name })} /> : activeTool === 'shapes' ? <ToolList title="Shapes" items={[['Rectangle', Square], ['Circle', Circle], ['Line', LineChart], ['Arrow', ArrowRight]]} onAdd={(name) => addCanvasElement('shape', name)} /> : activeTool === 'images' ? <label className="image-upload"><Upload size={24} /><b>Upload image</b><span>Drag an image here or choose an image</span><input type="file" accept="image/*" onChange={addImage} /></label> : activeTool === 'tools' ? <ToolList title="Tools" items={[['Select', MousePointer2], ['Pen', PenTool], ['Highlighter', Highlighter], ['Eraser', Eraser], ['Measure', Wrench]]} onAdd={(name) => name === 'Eraser' ? setCanvasElements([]) : addCanvasElement('annotation', name)} /> : <div className="template-list">{['Standard Network Rack', 'Server Rack', 'Office Rack', 'Core Switch Rack', 'Small Cabinet'].map((name) => <button key={name} onClick={() => handleLoadSample(sampleData.racks)}><span className="template-art" /><b>{name}</b><small>Use layout</small></button>)}</div>}</aside>
-        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} /> Drag devices between rack units, or add one from the library.</div><div ref={canvasRackRef} className="canvas-rack" onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type')) { event.preventDefault(); event.dataTransfer.dropEffect = getDropRU(event) ? 'copy' : 'none'; setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={setMovingItemIndex} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && dropGuideStyle && <div className="rack-drop-guide" style={dropGuideStyle}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div></main>
-        <aside className="properties-panel"><div className="properties-title"><div><p>Selected rack</p><h2>Device Properties</h2></div><button title="Properties"><PenTool size={17} /></button></div>{activeRack ? <><div className="properties-preview"><span className="device-art device-art--switch" /><b>{activeRack.items[0]?.label || 'Select a device'}</b></div><RackEditorTable rack={activeRack} onChange={handleRackChange} /></> : <p className="properties-empty">Create a rack to start editing its properties.</p>}</aside>
+      <div className={`canva-workspace${libraryOpen ? ' canva-workspace--library-open' : ''}`}>
+        <aside className="tool-rail">{[{ id: 'devices', icon: Network, label: 'Devices' }, { id: 'elements', icon: Sparkles, label: 'Elements' }, { id: 'wiring', icon: Cable, label: 'Wiring' }, { id: 'text', icon: Type, label: 'Text' }, { id: 'shapes', icon: Shapes, label: 'Shapes' }, { id: 'images', icon: Image, label: 'Images' }, { id: 'tools', icon: Wrench, label: 'Tools' }, { id: 'templates', icon: LayoutTemplate, label: 'Templates' }].map(({ id, icon: Icon, label }) => <button key={id} className={activeTool === id ? 'active' : ''} onClick={() => { if (activeTool === id) setLibraryOpen((isOpen) => !isOpen); else { setActiveTool(id); setLibraryOpen(true); } }}><Icon size={20} /><span>{label}</span></button>)}</aside>
+        {libraryOpen && <aside className="element-library"><div className="library-title"><h2>{activeTool === 'devices' ? 'Devices' : activeTool[0].toUpperCase() + activeTool.slice(1)}</h2><button aria-label="Close library" onClick={() => setLibraryOpen(false)}>x</button></div><div className="library-search"><Search size={16} /><input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder={activeTool === 'devices' ? 'Search devices...' : `Search ${activeTool}...`} /><SlidersHorizontal size={16} /></div>{activeTool === 'devices' ? <div className="device-groups">{[{ title: 'Network', types: ['switch', 'router', 'firewall', 'patch_panel'] }, { title: 'Compute & Storage', types: ['server', 'nas', 'storage', 'nvr'] }, { title: 'Power', types: ['ups', 'pdu'] }, { title: 'Other', types: ['appliance', 'generic', 'other', 'cable_manager'] }].map(({ title, types }) => <section key={title}><h3>{title}</h3><div>{types.filter((type) => defaultLabel(type).toLowerCase().includes(deviceSearch.toLowerCase())).map((type) => <button key={type} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-device-type', type); }} onClick={() => addDevice(type)}><span className={`device-art device-art--${type}`} /><b>{defaultLabel(type)}</b></button>)}</div></section>)}</div> : activeTool === 'wiring' ? <ToolList title="Network" kind="wire" items={[['Ethernet', Cable], ['Fibre', LineChart], ['Patch Cable', Cable], ['Power Cable', Cable], ['Connection Line', ArrowRight]]} onAdd={(name) => addCanvasElement('wire', name)} /> : activeTool === 'text' ? <ToolList title="Add text" kind="text" items={[['Heading', Type], ['Subheading', Type], ['Label', Type], ['Note', FileText]]} onAdd={(name) => addCanvasElement('text', name, { value: name === 'Heading' ? 'Rack heading' : name === 'Note' ? 'Add a note' : name })} /> : activeTool === 'shapes' ? <ToolList title="Shapes" kind="shape" items={[['Rectangle', Square], ['Circle', Circle], ['Line', LineChart], ['Arrow', ArrowRight]]} onAdd={(name) => addCanvasElement('shape', name)} /> : activeTool === 'images' ? <label className="image-upload"><Upload size={24} /><b>Upload image</b><span>Drag an image here or choose an image</span><input type="file" accept="image/*" onChange={addImage} /></label> : activeTool === 'tools' ? <ToolList title="Tools" kind="annotation" items={[['Select', MousePointer2], ['Pen', PenTool], ['Highlighter', Highlighter], ['Eraser', Eraser], ['Measure', Wrench]]} onAdd={(name) => name === 'Eraser' ? setCanvasElements([]) : addCanvasElement('annotation', name)} /> : <div className="template-list">{['Standard Network Rack', 'Server Rack', 'Office Rack', 'Core Switch Rack', 'Small Cabinet'].map((name) => <button key={name} onClick={() => handleLoadSample(sampleData.racks)}><span className="template-art" /><b>{name}</b><small>Use layout</small></button>)}</div>}</aside>}
+        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} />{patchMedium ? ` ${patchSource === null ? `Select the ${patchMedium} source port.` : `Select the destination port for port ${patchSource.port}.`}` : ` ${viewSide === 'rear' ? 'Rear view. Drag devices between rack units.' : 'Double-click the rack header for rack properties, or a device to edit it.'}`}</div><div ref={canvasRackRef} className={`canvas-rack${viewSide === 'rear' ? ' canvas-rack--rear' : ''}`} style={{ '--canvas-zoom': canvasZoom }} onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type') || event.dataTransfer.types.includes('rack-canvas-element') || event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (event.dataTransfer.types.includes('rack-device-type')) setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const rawElement = event.dataTransfer.getData('rack-canvas-element'); const image = [...event.dataTransfer.files].find((file) => file.type.startsWith('image/')); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); else if (rawElement) { try { const { kind, label } = JSON.parse(rawElement); addCanvasElementAt(kind, label, event, kind === 'text' ? { value: label === 'Heading' ? 'Rack heading' : label === 'Note' ? 'Add a note' : label } : {}); } catch {} } else if (image) addDroppedImage(image, event); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={patchMedium ? undefined : setMovingItemIndex} onPatchDevice={patchMedium ? handlePatchDevice : undefined} patchSource={patchSource} onOpenProperties={setPropertiesItemIndex} onOpenRackProperties={() => setRackPropertiesOpen(true)} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && dropGuideStyle && <div className="rack-drop-guide" style={dropGuideStyle}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div><div className="canvas-viewport-controls"><div className="view-toggle" aria-label="Rack view"><button className={viewSide === 'front' ? 'active' : ''} onClick={() => setViewSide('front')}>Front</button><button className={viewSide === 'rear' ? 'active' : ''} onClick={() => setViewSide('rear')}>Rear</button></div><div className="zoom-control"><button title="Select zoom level" aria-label="Select zoom level" aria-expanded={zoomMenuOpen} onClick={() => setZoomMenuOpen((isOpen) => !isOpen)}>{Math.round(canvasZoom * 100)}% <ChevronDown size={14} /></button>{zoomMenuOpen && <div className="zoom-menu">{[50, 75, 100, 125, 150].map((percent) => <button key={percent} className={Math.round(canvasZoom * 100) === percent ? 'active' : ''} onClick={() => { setCanvasZoom(percent / 100); setZoomMenuOpen(false); }}>{percent}%</button>)}</div>}</div><button title="Zoom out" aria-label="Zoom out" onClick={() => setCanvasZoom((zoom) => Math.max(0.5, zoom - 0.1))}><ZoomOut size={16} /></button><button title="Zoom in" aria-label="Zoom in" onClick={() => setCanvasZoom((zoom) => Math.min(1.5, zoom + 0.1))}><ZoomIn size={16} /></button><button title="Fit rack to canvas" aria-label="Fit rack to canvas" onClick={() => setCanvasZoom(1)}><Maximize size={16} /></button></div></main>
       </div>
+      {propertiesItemIndex !== null && <DevicePropertiesModal key={`${activeIndex}-${propertiesItemIndex}`} item={activeRack?.items[propertiesItemIndex]} user={session?.user} onSave={saveDeviceProperties} onClose={() => setPropertiesItemIndex(null)} />}
+      <RackPropertiesModal rack={rackPropertiesOpen ? activeRack : null} onSave={saveRackProperties} onClose={() => setRackPropertiesOpen(false)} />
 
       {/* ── Hidden off-screen container: diagram mode ZIP export ── */}
       <div

@@ -35,6 +35,21 @@
 - The supplied Supabase project ref is not available to the currently authenticated CLI account, so schema inspection was not possible. Authentication will work after a project publishable key is added locally to `.env`.
 - Validated with `npm run build` successfully. Vite notes the existing bundle is above 500 kB after minification.
 
+- Replaced the imported static network, copper patch-panel, and fibre-panel SVG assets in the technical rack elevation with responsive inline SVG faces. Switches and panels now infer `8`, `12`, `16`, `24`, or `48` port layouts from the device label; fibre-labelled switches render SFP-style ports and fibre panels render LC-style pairs.
+- Added persistent typed rack patch runs. In Wiring, **Patch Cable** starts a copper run and **Fibre** starts a fibre run; selecting two compatible devices in the technical elevation creates an amber or cyan routed connection. Copper patches require a copper patch panel endpoint, while fibre patches require a fibre panel or fibre-capable labelled switch.
+- Corrected the Wiring interaction so **Ethernet** now starts the same copper-patch workflow as **Patch Cable**, allowing a switch-to-patch-panel connection rather than creating a loose canvas annotation.
+- Broadened copper patch compatibility: both endpoints can now be a copper patch panel, generic switch, Cisco switch, or Extreme switch. Fibre trays and non-network equipment remain invalid copper destinations.
+- Fixed patch-mode availability in Simple view: starting an Ethernet or Fibre patch now renders the technical elevation automatically, and the selected source device receives an amber outline before the destination is chosen.
+- Added port-level patching. Individual inline SVG ports are now selectable: users choose the exact source port and exact destination port, with saved runs recording both port numbers, connected ports highlighted, and cable labels showing the selected pair.
+- Changed copper patch runs, connected copper ports, and the selected source outline to blue so each source-to-destination cable path is easy to follow in the elevation.
+- Moved routed patch cables above the device-face layer. Their paths and endpoint markers now remain visibly blue over the switch and patch-panel artwork without intercepting port clicks.
+- Corrected cable-route visibility by anchoring each run to its actual selected source and destination port coordinates, then routing it across the elevation with a high-contrast blue cable, endpoint markers, and port-pair label.
+- Extended port-aware device faces using standard hardware conventions: NVRs expose numbered PoE ports and a red WAN uplink; firewalls expose eight LAN ports and a red WAN port; servers expose two NICs and amber management; generic appliances expose LAN and red WAN. These interfaces can participate in copper patching and cable anchors match their displayed port positions.
+- Strengthened port-role color coding: unpatched WAN/uplink sockets are now visibly red rather than only showing a red status marker; once patched, the blue connected-port state takes precedence.
+- Made the left editor library collapsible. The close control hides the expanded Devices/Wiring/etc. panel; selecting any tool from the persistent narrow rail restores it with that tool active.
+- Made each active tool-rail item a collapse toggle: tapping Devices (or another currently open tool) again closes its library; tapping it once more reopens it. Switching tools still opens the selected library directly.
+- Removed the unused right Device Properties column from the builder workspace. The rack canvas now fills the reclaimed width, and it expands further when the left library is collapsed.
+
 ## Files Changed
 
 - `src/main.jsx`

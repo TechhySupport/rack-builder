@@ -1,9 +1,59 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import '../auth.css';
 
-export default function AuthPage({ onBack, recovery = false, invitation = false, onRecoveryComplete }) {
-  const [mode, setMode] = useState('signin');
+const AUTH_TIMEOUT_MS = 15000;
+const AUTH_RESET_PATH = '/a/reset-password';
+
+function reportAuthDebug(event, details) {
+  const log = event === 'failed' ? console.error : console.info;
+  log(`[auth-debug] request ${event}`, details);
+
+  if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+    const detailPath = Object.entries(details)
+      .map(([key, value]) => `${key}-${String(value).replace(/[^a-z0-9.-]/gi, '_')}`)
+      .join('/');
+    fetch(`/__auth-debug/${event}/${detailPath}`, { cache: 'no-store' }).catch(() => {});
+  }
+}
+
+async function withAuthTimeout(authRequest, mode) {
+  const startedAt = performance.now();
+  let timeoutId;
+  reportAuthDebug('started', {
+    mode,
+    timeoutMs: AUTH_TIMEOUT_MS,
+  });
+  try {
+    const result = await Promise.race([
+      authRequest,
+      new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error('AUTH_TIMEOUT')), AUTH_TIMEOUT_MS);
+      }),
+    ]);
+    reportAuthDebug('completed', {
+      mode,
+      durationMs: Math.round(performance.now() - startedAt),
+      success: !result.error,
+      status: result.error?.status || null,
+      error: result.error?.message || null,
+    });
+    return result;
+  } catch (error) {
+    reportAuthDebug('failed', {
+      mode,
+      durationMs: Math.round(performance.now() - startedAt),
+      timedOut: error.message === 'AUTH_TIMEOUT',
+      error: error.message,
+    });
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+export default function AuthPage({ onBack, onAuthenticated, onModeChange, initialMode = 'signin', recovery = false, invitation = false, onRecoveryComplete }) {
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -13,6 +63,19 @@ export default function AuthPage({ onBack, recovery = false, invitation = false,
   const isSignUp = mode === 'signup';
   const isReset = mode === 'reset';
   const isUpdate = recovery || invitation;
+
+  useEffect(() => {
+    setMode(initialMode);
+    setError('');
+    setMessage('');
+  }, [initialMode]);
+
+  function changeMode(nextMode) {
+    setMode(nextMode);
+    setError('');
+    setMessage('');
+    onModeChange?.(nextMode);
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -28,21 +91,34 @@ export default function AuthPage({ onBack, recovery = false, invitation = false,
     }
 
     setLoading(true);
-    const { error: authError } = isUpdate
-      ? await supabase.auth.updateUser({ password })
-      : isReset
-        ? await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}?recovery=1` })
-        : isSignUp
-          ? await supabase.auth.signUp({ email, password })
-          : await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    let authData;
+    let authError;
+    try {
+      const requestMode = isUpdate ? 'update-password' : isReset ? 'reset-password' : isSignUp ? 'signup' : 'signin';
+      const result = await withAuthTimeout(isUpdate
+        ? supabase.auth.updateUser({ password })
+        : isReset
+          ? supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${AUTH_RESET_PATH}?recovery=1` })
+          : isSignUp
+            ? supabase.auth.signUp({ email, password })
+            : supabase.auth.signInWithPassword({ email, password }), requestMode);
+      authData = result.data;
+      authError = result.error;
+    } catch (requestError) {
+      authError = requestError;
+    } finally {
+      setLoading(false);
+    }
 
     if (authError) {
-      setError(authError.message);
+      const serviceUnavailable = authError.message === 'AUTH_TIMEOUT' || /HTTP 5\d\d|Gateway Timeout|Failed to fetch/i.test(authError.message);
+      setError(serviceUnavailable
+        ? 'Sign-in service is temporarily unavailable. Please try again shortly.'
+        : authError.message);
     } else if (isUpdate) {
       await supabase.auth.signOut();
       onRecoveryComplete?.();
-      setMode('signin');
+      changeMode('signin');
       setPassword('');
       setConfirmPassword('');
       setMessage('Password updated. Sign in with your new password.');
@@ -50,6 +126,8 @@ export default function AuthPage({ onBack, recovery = false, invitation = false,
       setMessage('If an account exists for this email, a password reset link has been sent.');
     } else if (isSignUp) {
       setMessage('Check your email to confirm your account, then sign in.');
+    } else {
+      onAuthenticated?.(authData.session);
     }
   }
 
@@ -77,9 +155,9 @@ export default function AuthPage({ onBack, recovery = false, invitation = false,
             <button className="primary-action auth-submit" disabled={loading}>{loading ? 'Please wait' : isUpdate ? 'Update password' : isReset ? 'Send reset link' : isSignUp ? 'Create account' : 'Sign in'}</button>
           </form>
           {isUpdate ? null : isReset ? (
-            <p className="auth-switch">Remembered your password? <button onClick={() => { setMode('signin'); setError(''); setMessage(''); }}>Sign in</button></p>
+            <p className="auth-switch">Remembered your password? <button onClick={() => changeMode('signin')}>Sign in</button></p>
           ) : (
-            <><p className="auth-switch">{isSignUp ? 'Already have an account?' : 'New to Racked View?'} <button onClick={() => { setMode(isSignUp ? 'signin' : 'signup'); setError(''); setMessage(''); }}>{isSignUp ? 'Sign in' : 'Create an account'}</button></p>{!isSignUp && <button className="forgot-password" onClick={() => { setMode('reset'); setError(''); setMessage(''); }}>Forgot password?</button>}</>
+            <><p className="auth-switch">{isSignUp ? 'Already have an account?' : 'New to Racked View?'} <button onClick={() => changeMode(isSignUp ? 'signin' : 'signup')}>{isSignUp ? 'Sign in' : 'Create an account'}</button></p>{!isSignUp && <button className="forgot-password" onClick={() => changeMode('reset')}>Forgot password?</button>}</>
           )}
         </div>
       </section>

@@ -3,7 +3,8 @@
  * Technical rack elevation diagram with external callout labels.
  * Labels appear to the right of the rack frame, connected by a dashed line.
  */
-import { buildRackRows } from '../utils/rackUtils';
+import { buildRackRows, connectionPointsForItem, isVerticalPdu } from '../utils/rackUtils';
+import { useRef } from 'react';
 import {
   PatchPanelFace,
   VoiceFace,
@@ -19,6 +20,10 @@ import {
   FirewallFace,
   GenericFace,
   EmptyFace,
+  NVRFace,
+  devicePortProfile,
+  RearDeviceFace,
+  VerticalPDUFace,
 } from './DeviceFaces';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
@@ -55,8 +60,11 @@ const C_CALLOUT  = '#6a7888';
 const C_LABEL    = '#1a2030';
 
 // ── Face selector ─────────────────────────────────────────────────────────────
-function renderFace(item, ruCount, x, y, w, h) {
-  const props = { x, y, w, h, label: item.label || '', ruCount };
+function renderFace(item, ruCount, x, y, w, h, portProps = {}, viewSide = 'front') {
+  const props = { ...item, x, y, w, h, label: item.label || '', ruCount, connectionFace: viewSide, ...portProps };
+  if (viewSide === 'rear' && !['empty', 'cable_manager', 'tray', 'shelf'].includes(item.type)) {
+    return <RearDeviceFace key={y} {...props} />;
+  }
   switch (item.type) {
     case 'patch_panel':   return <PatchPanelFace   key={y} {...props} />;
     case 'switch':        return <SwitchFace        key={y} {...props} />;
@@ -70,7 +78,7 @@ function renderFace(item, ruCount, x, y, w, h) {
     case 'firewall':      return <FirewallFace       key={y} {...props} />;
     case 'tray': case 'shelf': case 'desktop': case 'monitor':
                           return <ShelfFace         key={y} {...props} />;
-    case 'nvr':           return <ServerFace        key={y} {...props} />;
+    case 'nvr':           return <NVRFace           key={y} {...props} />;
     case 'voice':         return <VoiceFace          key={y} {...props} />;
     case 'empty':         return <EmptyFace         key={y} x={x} y={y} w={w} h={h} />;
     default:
@@ -99,8 +107,53 @@ function trunc(s, max) {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+function portAnchor(item, layout, portId, viewSide) {
+  const profile = devicePortProfile(item, viewSide);
+  if (!profile) return { x: DEVICE_X + DEVICE_W - 12, y: layout.y + layout.h / 2 };
+  const { points, count, bankX, bankW } = profile;
+  if (isVerticalPdu(item)) {
+    const index = Math.max(0, points.findIndex((point) => point.id === portId));
+    const top = layout.y + 26;
+    const spacing = Math.max(1, layout.h - 36) / Math.max(1, points.length);
+    return { x: layout.x + layout.w / 2, y: top + index * spacing + spacing / 2 };
+  }
+  if (viewSide === 'rear') {
+    const powerPoints = points.filter((point) => point.medium === 'power');
+    const dataPoints = points.filter((point) => point.medium !== 'power');
+    const isPower = powerPoints.some((point) => point.id === portId);
+    const bankPoints = isPower ? powerPoints : dataPoints;
+    const rearBankW = isPower
+      ? Math.min(DEVICE_W * 0.28, Math.max(42, powerPoints.length * 18))
+      : Math.max(0, DEVICE_W - (powerPoints.length ? Math.min(DEVICE_W * 0.28, Math.max(42, powerPoints.length * 18)) : 0) - 66);
+    const rearBankX = isPower ? DEVICE_X + DEVICE_W - rearBankW - 8 : DEVICE_X + 50;
+    const rearIndex = Math.max(0, bankPoints.findIndex((point) => point.id === portId));
+    const rearColumns = Math.max(1, bankPoints.length > 24 ? 24 : Math.ceil(bankPoints.length / 2));
+    const rearRows = Math.max(1, Math.ceil(bankPoints.length / rearColumns));
+    const rearGap = 2;
+    const rearPortW = Math.max(4, (rearBankW - rearGap * (rearColumns - 1)) / rearColumns);
+    const rearPortH = Math.max(5, (layout.h - 10 - rearGap * (rearRows - 1)) / rearRows);
+    return {
+      x: rearBankX + (rearIndex % rearColumns) * (rearPortW + rearGap) + rearPortW / 2,
+      y: layout.y + 5 + Math.floor(rearIndex / rearColumns) * (rearPortH + rearGap) + rearPortH / 2,
+    };
+  }
+  const columns = Math.max(1, count > 24 ? 24 : Math.ceil(count / 2));
+  const rows = Math.ceil(count / columns);
+  const resolvedBankX = DEVICE_X + (bankX < 1 ? DEVICE_W * bankX : bankX);
+  const resolvedBankW = bankW * DEVICE_W;
+  const gap = 2;
+  const portW = Math.max(4, (resolvedBankW - gap * (columns - 1)) / columns);
+  const portH = Math.max(5, (layout.h - 10 - gap * (rows - 1)) / rows);
+  const index = Math.max(0, points.findIndex((point) => point.id === portId));
+  return {
+    x: resolvedBankX + (index % columns) * (portW + gap) + portW / 2,
+    y: layout.y + 5 + Math.floor(index / columns) * (portH + gap) + portH / 2,
+  };
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
-export function RackElevation({ rack, innerRef, onStartMoveItem }) {
+export function RackElevation({ rack, viewSide = 'front', showDataWiring = true, innerRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties }) {
+  const lastPointerDown = useRef({ itemIndex: null, time: 0 });
   if (!rack) return null;
 
   const maxRU  = rack.maxRU || 42;
@@ -113,25 +166,56 @@ export function RackElevation({ rack, innerRef, onStartMoveItem }) {
 
   let currentY = HDR_H;
   const deviceElements   = [];
+  const verticalPduElements = [];
   const calloutElements  = [];
+  const deviceLayouts = new Map();
 
   rows.forEach((row, idx) => {
     const rowH   = row.height * RU_H;
     const centerY = currentY + rowH / 2;
 
     if (row.type === 'item') {
+      const itemIndex = rack.items.indexOf(row.item);
+      const connectedPorts = (rack.connections || []).flatMap((connection) => {
+        if (connection.from === itemIndex && (connection.fromPortId || connection.fromPort)) return [connection.fromPortId || connection.fromPort];
+        if (connection.to === itemIndex && (connection.toPortId || connection.toPort)) return [connection.toPortId || connection.toPort];
+        return [];
+      });
+      deviceLayouts.set(itemIndex, { y: currentY + 1, h: rowH - 2, item: row.item });
       deviceElements.push(
         <g
           key={`device-${idx}`}
-          className={onStartMoveItem ? 'rack-device-draggable' : undefined}
+          className={onPatchDevice ? `rack-device-patchable${patchSource === itemIndex ? ' rack-device-patch-source' : ''}` : onStartMoveItem ? 'rack-device-draggable' : undefined}
           onPointerDown={(event) => {
+            if (event.detail >= 2) {
+              onOpenProperties?.(itemIndex);
+              return;
+            }
+            if (onPatchDevice) {
+              event.preventDefault();
+              return;
+            }
+            const now = Date.now();
+            if (lastPointerDown.current.itemIndex === itemIndex && now - lastPointerDown.current.time < 350) {
+              onOpenProperties?.(itemIndex);
+              lastPointerDown.current = { itemIndex: null, time: 0 };
+              return;
+            }
+            lastPointerDown.current = { itemIndex, time: now };
             if (!onStartMoveItem) return;
             event.preventDefault();
             event.currentTarget.setPointerCapture?.(event.pointerId);
-            onStartMoveItem(rack.items.indexOf(row.item));
+            onStartMoveItem(itemIndex);
+          }}
+          onDoubleClick={() => {
+            onOpenProperties?.(itemIndex);
           }}
         >
-          {renderFace(row.item, row.height, DEVICE_X, currentY + 1, DEVICE_W, rowH - 2)}
+          {renderFace(row.item, row.height, DEVICE_X, currentY + 1, DEVICE_W, rowH - 2, {
+            onSelectPort: onPatchDevice ? (port) => onPatchDevice(itemIndex, port) : undefined,
+            selectedPort: patchSource?.itemIndex === itemIndex ? patchSource.port : undefined,
+            connectedPorts,
+          }, viewSide)}
         </g>
       );
       // External callout label
@@ -169,6 +253,70 @@ export function RackElevation({ rack, innerRef, onStartMoveItem }) {
     currentY += rowH;
   });
 
+  if (viewSide === 'rear') {
+    rack.items.forEach((item, itemIndex) => {
+      if (!isVerticalPdu(item)) return;
+      const railW = 18;
+      const railX = item.pduRailSide === 'left' ? DEVICE_X + 3 : DEVICE_X + DEVICE_W - railW - 3;
+      const railY = HDR_H + 6;
+      const railH = bodyH - 12;
+      const connectedPorts = (rack.connections || []).flatMap((connection) => {
+        if (connection.from === itemIndex && (connection.fromPortId || connection.fromPort)) return [connection.fromPortId || connection.fromPort];
+        if (connection.to === itemIndex && (connection.toPortId || connection.toPort)) return [connection.toPortId || connection.toPort];
+        return [];
+      });
+      deviceLayouts.set(itemIndex, { x: railX, y: railY, w: railW, h: railH, item });
+      verticalPduElements.push(
+        <g
+          key={`vertical-pdu-${itemIndex}`}
+          className={onPatchDevice ? `rack-device-patchable${patchSource?.itemIndex === itemIndex ? ' rack-device-patch-source' : ''}` : undefined}
+          onPointerDown={(event) => {
+            if (event.detail >= 2) onOpenProperties?.(itemIndex);
+            if (onPatchDevice) event.preventDefault();
+          }}
+          onDoubleClick={() => onOpenProperties?.(itemIndex)}
+        >
+          <VerticalPDUFace
+            {...item}
+            x={railX}
+            y={railY}
+            w={railW}
+            h={railH}
+            onSelectPort={onPatchDevice ? (port) => onPatchDevice(itemIndex, port) : undefined}
+            selectedPort={patchSource?.itemIndex === itemIndex ? patchSource.port : undefined}
+            connectedPorts={connectedPorts}
+          />
+        </g>,
+      );
+    });
+  }
+
+  const connectionElements = (rack.connections || []).map((connection, index) => {
+    if (!showDataWiring && connection.medium !== 'power') return null;
+    const fromLayout = deviceLayouts.get(connection.from);
+    const toLayout = deviceLayouts.get(connection.to);
+    if (!fromLayout || !toLayout) return null;
+    const fromPortId = connection.fromPortId || connection.fromPort;
+    const toPortId = connection.toPortId || connection.toPort;
+    const fromPoint = connectionPointsForItem(fromLayout.item).find((point) => point.id === fromPortId);
+    const toPoint = connectionPointsForItem(toLayout.item).find((point) => point.id === toPortId);
+    const pointFace = (point) => point?.face || (point?.medium === 'power' ? 'rear' : 'front');
+    if (pointFace(fromPoint) !== viewSide || pointFace(toPoint) !== viewSide) return null;
+    const from = portAnchor(fromLayout.item, fromLayout, fromPortId, viewSide);
+    const to = portAnchor(toLayout.item, toLayout, toPortId, viewSide);
+    const cableX = DEVICE_X + DEVICE_W - 28 - (index % 5) * 9;
+    const color = connection.medium === 'fibre' ? '#22d3ee' : connection.medium === 'power' ? '#f59e0b' : '#2563eb';
+    const fromName = fromPoint?.name || fromPortId;
+    const toName = toPoint?.name || toPortId;
+    return <g key={connection.id || `${connection.from}-${connection.to}-${index}`} pointerEvents="none">
+      <title>{`${fromLayout.item.label || 'Device'} ${fromName} to ${toLayout.item.label || 'Device'} ${toName}`}</title>
+      <path d={`M ${from.x} ${from.y} H ${cableX} C ${cableX - 38} ${from.y}, ${cableX - 38} ${to.y}, ${cableX} ${to.y} H ${to.x}`} fill="none" stroke="#0f172a" strokeWidth={5.5} opacity={0.42} />
+      <path d={`M ${from.x} ${from.y} H ${cableX} C ${cableX - 38} ${from.y}, ${cableX - 38} ${to.y}, ${cableX} ${to.y} H ${to.x}`} fill="none" stroke={color} strokeWidth={2.6} />
+      <circle cx={from.x} cy={from.y} r={3.2} fill={color} stroke="#eff6ff" strokeWidth={0.8} />
+      <circle cx={to.x} cy={to.y} r={3.2} fill={color} stroke="#eff6ff" strokeWidth={0.8} />
+    </g>;
+  });
+
   return (
     <div ref={innerRef} style={{ display: 'inline-block', background: '#fff', padding: '8px' }}>
       <svg
@@ -201,6 +349,7 @@ export function RackElevation({ rack, innerRef, onStartMoveItem }) {
           fontSize={8} fill="#6a7888"
           fontFamily="'Courier New', monospace" letterSpacing={0.8}
         >{rack.rackNumber ? `RACK ${rack.rackNumber}  ·  ${maxRU}U` : `${maxRU}U`}</text>
+        <rect x={0} y={0} width={RACK_W} height={HDR_H} fill="transparent" onDoubleClick={onOpenRackProperties} style={{ cursor: onOpenRackProperties ? 'pointer' : undefined }} />
 
         {/* ── Body background ─────────────────────────────────────────────── */}
         <rect x={OUTER_PX} y={HDR_H}
@@ -241,6 +390,8 @@ export function RackElevation({ rack, innerRef, onStartMoveItem }) {
 
         {/* ── Device faceplates ───────────────────────────────────────────── */}
         {deviceElements}
+        {verticalPduElements}
+        {connectionElements}
 
         {/* ── Footer ──────────────────────────────────────────────────────── */}
         <rect x={0} y={HDR_H + bodyH} width={RACK_W} height={FTR_H} fill={C_HDR} />

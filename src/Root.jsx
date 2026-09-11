@@ -4,13 +4,43 @@ import LandingPage from './components/LandingPage.jsx';
 import ComingSoonLanding from './components/ComingSoonLanding.jsx';
 import AuthPage from './components/AuthPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import SettingsPage from './components/SettingsPage.jsx';
 import { supabase } from './lib/supabase.js';
 import './marketing.css';
 
+const BUILDER_PATH = '/b/builder';
+const DASHBOARD_PATH = '/dashboard';
+const SETTINGS_PATH = '/settings';
+const AUTH_PATHS = {
+  signin: '/a/login',
+  signup: '/a/signup',
+  reset: '/a/reset-password',
+};
+
+function viewFromPathname() {
+  if (window.location.pathname === BUILDER_PATH) return 'builder';
+  if (window.location.pathname === DASHBOARD_PATH) return 'dashboard';
+  if (window.location.pathname === SETTINGS_PATH) return 'settings';
+  if (Object.values(AUTH_PATHS).includes(window.location.pathname)) return 'auth';
+  return 'landing';
+}
+
+function authModeFromPathname() {
+  return Object.entries(AUTH_PATHS).find(([, path]) => path === window.location.pathname)?.[0] || 'signin';
+}
+
+function authReturnViewFromUrl() {
+  return new URLSearchParams(window.location.search).get('returnTo') === BUILDER_PATH ? 'builder' : 'landing';
+}
+
 export default function Root() {
-  const [view, setView] = useState('landing');
-  const [authenticatedView, setAuthenticatedView] = useState('dashboard');
-  const [authReturnView, setAuthReturnView] = useState('landing');
+  const initialView = viewFromPathname();
+  const [view, setView] = useState(initialView);
+  const [authenticatedView, setAuthenticatedView] = useState(
+    () => ['builder', 'settings'].includes(initialView) ? initialView : 'dashboard',
+  );
+  const [authReturnView, setAuthReturnView] = useState(authReturnViewFromUrl);
+  const [authMode, setAuthMode] = useState(authModeFromPathname);
   const [session, setSession] = useState(null);
   const [passwordRecovery, setPasswordRecovery] = useState(
     () => Boolean(new URLSearchParams(window.location.search).get('recovery')),
@@ -23,10 +53,75 @@ export default function Root() {
     () => sessionStorage.getItem('rackedview-preview-access') === 'granted',
   );
 
-  function openAuth(returnView) {
+  function openAuth(returnView, mode = 'signin') {
+    const returnPath = returnView === 'builder' ? BUILDER_PATH : '/';
+    window.history.pushState({}, '', `${AUTH_PATHS[mode]}?returnTo=${encodeURIComponent(returnPath)}`);
     setAuthReturnView(returnView);
+    setAuthMode(mode);
     setView('auth');
   }
+
+  function changeAuthMode(mode) {
+    const returnPath = authReturnView === 'builder' ? BUILDER_PATH : '/';
+    window.history.pushState({}, '', `${AUTH_PATHS[mode]}?returnTo=${encodeURIComponent(returnPath)}`);
+    setAuthMode(mode);
+  }
+
+  function leaveAuth() {
+    const returnPath = authReturnView === 'builder' ? BUILDER_PATH : '/';
+    window.history.pushState({}, '', returnPath);
+    setView(authReturnView);
+    setAuthenticatedView(authReturnView === 'builder' ? 'builder' : 'dashboard');
+  }
+
+  function openBuilder() {
+    window.history.pushState({}, '', BUILDER_PATH);
+    setView('builder');
+    setAuthenticatedView('builder');
+  }
+
+  function openDashboard() {
+    window.history.pushState({}, '', DASHBOARD_PATH);
+    setView('dashboard');
+    setAuthenticatedView('dashboard');
+  }
+
+  function openSettings() {
+    window.history.pushState({}, '', SETTINGS_PATH);
+    setView('settings');
+    setAuthenticatedView('settings');
+  }
+
+  async function signOut() {
+    await supabase?.auth.signOut();
+    window.history.replaceState({}, '', '/');
+    setSession(null);
+    setView('landing');
+    setAuthenticatedView('dashboard');
+  }
+
+  function completeAuthentication(nextSession) {
+    const returnToBuilder = authReturnView === 'builder';
+    window.history.replaceState({}, '', returnToBuilder ? BUILDER_PATH : DASHBOARD_PATH);
+    setSession(nextSession);
+    setView(returnToBuilder ? 'builder' : 'dashboard');
+    setAuthenticatedView(returnToBuilder ? 'builder' : 'dashboard');
+  }
+
+  useEffect(() => {
+    function handlePopState() {
+      const nextView = viewFromPathname();
+      setView(nextView);
+      setAuthenticatedView(['builder', 'settings'].includes(nextView) ? nextView : 'dashboard');
+      if (nextView === 'auth') {
+        setAuthMode(authModeFromPathname());
+        setAuthReturnView(authReturnViewFromUrl());
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return undefined;
@@ -37,6 +132,10 @@ export default function Root() {
         setView('auth');
       }
       setSession(nextSession);
+      if (event === 'SIGNED_IN' && window.location.pathname === BUILDER_PATH) {
+        setView('builder');
+        setAuthenticatedView('builder');
+      }
       setCheckingSession(false);
     });
     supabase.auth.getSession().then(({ data }) => {
@@ -57,10 +156,11 @@ export default function Root() {
 
   if (checkingSession) return <div className="session-loading">Loading Racked View</div>;
   if (passwordRecovery || invitationSetup) return <AuthPage recovery={passwordRecovery} invitation={invitationSetup} onBack={() => setView('landing')} onRecoveryComplete={completeCredentialSetup} />;
-  if (session && authenticatedView === 'builder') return <App session={session} onSignOut={() => supabase?.auth.signOut()} />;
-  if (session) return <Dashboard session={session} onOpenBuilder={() => setAuthenticatedView('builder')} onSignOut={() => supabase?.auth.signOut()} />;
-  if (view === 'auth') return <AuthPage onBack={() => setView(authReturnView)} />;
+  if (session && authenticatedView === 'builder') return <App session={session} onDashboard={openDashboard} onSettings={openSettings} onSignOut={signOut} />;
+  if (session && authenticatedView === 'settings') return <SettingsPage session={session} onDashboard={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+  if (view === 'auth') return <AuthPage initialMode={authMode} onModeChange={changeAuthMode} onBack={leaveAuth} onAuthenticated={completeAuthentication} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
   if (!previewAccess) return <ComingSoonLanding onUnlock={() => setPreviewAccess(true)} />;
-  return <LandingPage onGetStarted={() => setView('builder')} onSignIn={() => openAuth('landing')} />;
+  return <LandingPage onGetStarted={openBuilder} onSignIn={() => openAuth('landing')} />;
 }
