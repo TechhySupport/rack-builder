@@ -487,8 +487,14 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         .eq('builder_rack_key', builderRackKey)
         .single();
       console.log('[saveRackProperties] Fresh verification:', { freshError, freshData });
+      console.log('[saveRackProperties] site_id comparison:', {
+        sent: updatedRack.site_id,
+        returned_from_select: updateData?.[0]?.site_id,
+        fresh_from_db: freshData?.site_id,
+        match: freshData?.site_id === updatedRack.site_id
+      });
       if (freshData?.site_id !== updatedRack.site_id) {
-        console.warn('[saveRackProperties] WARNING: site_id did not actually update!', {
+        console.warn('[saveRackProperties] ⚠️ SITE_ID DID NOT SAVE! Likely RLS policy blocking the update.', {
           expected: updatedRack.site_id,
           actual: freshData?.site_id
         });
