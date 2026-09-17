@@ -447,13 +447,33 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
 
     // Save to Supabase
     try {
+      const builderRackKey = `local-rack-${updatedRack.rackNumber || activeIndex + 1}`;
       console.log('[saveRackProperties] Saving rack:', {
+        builderRackKey,
         rackId: updatedRack.id,
         name: updatedRack.rackName,
         site_id: updatedRack.site_id,
         level: updatedRack.level,
         notes: updatedRack.notes
       });
+
+      // If no ID (loaded from localStorage), fetch it first
+      let rackId = updatedRack.id;
+      if (!rackId) {
+        const { data: existingRack } = await supabase
+          .from('racks')
+          .select('id')
+          .eq('builder_rack_key', builderRackKey)
+          .single();
+        rackId = existingRack?.id;
+        console.log('[saveRackProperties] Fetched rackId from Supabase:', rackId);
+      }
+
+      if (!rackId) {
+        setWorkspaceSaveMessage('Rack properties save failed: Could not find rack in database');
+        setSavingWorkspace(false);
+        return;
+      }
 
       const { error: updateError, data: updateData } = await supabase
         .from('racks')
@@ -465,7 +485,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           level: updatedRack.level || null,
           notes: updatedRack.notes || null,
         })
-        .eq('id', updatedRack.id)
+        .eq('id', rackId)
         .select();
 
       console.log('[saveRackProperties] Response:', { updateError, updateData });
@@ -483,7 +503,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       const { data: freshData, error: freshError } = await supabase
         .from('racks')
         .select('*')
-        .eq('id', updatedRack.id)
+        .eq('id', rackId)
         .single();
       console.log('[saveRackProperties] Fresh verification:', { freshError, freshData });
       console.log('[saveRackProperties] site_id comparison:', {
