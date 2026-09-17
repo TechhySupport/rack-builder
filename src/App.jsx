@@ -745,7 +745,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           }));
         });
         if (connectionPointRows.length > 0) {
-          const { error: connectionPointsError } = await supabase.from('device_connection_points').insert(connectionPointRows);
+          const { error: connectionPointsError } = await supabase.from('device_connection_points').upsert(connectionPointRows, { onConflict: 'device_id,client_point_id' });
           if (connectionPointsError) {
             setWorkspaceSaveMessage(connectionPointsError.message);
             setSavingWorkspace(false);
