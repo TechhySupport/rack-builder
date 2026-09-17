@@ -475,53 +475,26 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         return;
       }
 
-      const updatePayload = {
-        name: updatedRack.rackName,
-        identifier: updatedRack.rackNumber || null,
-        ru_capacity: updatedRack.maxRU,
-        site_id: updatedRack.site_id || null,
-        level: updatedRack.level || null,
-        notes: updatedRack.notes || null,
-      };
-      console.log('[saveRackProperties] Update payload:', updatePayload);
-      console.log('[saveRackProperties] Updating rack ID:', rackId);
+      console.log('[saveRackProperties] Updating rack ID:', rackId, 'with site_id:', updatedRack.site_id);
 
-      const { error: updateError, data: updateData } = await supabase
+      const { error: updateError } = await supabase
         .from('racks')
-        .update(updatePayload)
-        .eq('id', rackId)
-        .select();
+        .update({
+          name: updatedRack.rackName,
+          identifier: updatedRack.rackNumber || null,
+          ru_capacity: updatedRack.maxRU,
+          site_id: updatedRack.site_id || null,
+          level: updatedRack.level || null,
+          notes: updatedRack.notes || null,
+        })
+        .eq('id', rackId);
 
-      console.log('[saveRackProperties] Raw response:', { updateError, updateData });
-      console.log('[saveRackProperties] Rows affected:', updateData?.length || 0);
-      if (updateData && updateData.length > 0) {
-        console.log('[saveRackProperties] Updated record:', updateData[0]);
-      }
+      console.log('[saveRackProperties] Update error:', updateError);
 
       if (updateError) {
         console.error('[saveRackProperties] Error:', updateError);
         setWorkspaceSaveMessage(`Rack properties save failed: ${updateError.code || 'unknown'} - ${updateError.message}`);
         return;
-      }
-
-      // Verify the update actually worked by fetching fresh data
-      const { data: freshData, error: freshError } = await supabase
-        .from('racks')
-        .select('*')
-        .eq('id', rackId)
-        .single();
-      console.log('[saveRackProperties] Fresh verification:', { freshError, freshData });
-      console.log('[saveRackProperties] site_id comparison:', {
-        sent: updatedRack.site_id,
-        returned_from_select: updateData?.[0]?.site_id,
-        fresh_from_db: freshData?.site_id,
-        match: freshData?.site_id === updatedRack.site_id
-      });
-      if (freshData?.site_id !== updatedRack.site_id) {
-        console.warn('[saveRackProperties] ⚠️ SITE_ID DID NOT SAVE! Likely RLS policy blocking the update.', {
-          expected: updatedRack.site_id,
-          actual: freshData?.site_id
-        });
       }
 
       setWorkspaceSaveMessage('Rack properties saved to workspace!');
