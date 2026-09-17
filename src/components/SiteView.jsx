@@ -60,18 +60,31 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
   }
 
   async function saveSiteProperties() {
-    if (!editedSite || !supabase) return;
+    console.log('[SiteView] saveSiteProperties called');
+    console.log('[SiteView] editedSite:', editedSite);
+    console.log('[SiteView] supabase exists:', !!supabase);
+    console.log('[SiteView] siteId:', siteId);
+
+    if (!editedSite || !supabase) {
+      console.log('[SiteView] Early return - missing editedSite or supabase');
+      return;
+    }
+
     setSaving(true);
     setSaveMessage('');
 
     try {
+      console.log('[SiteView] Starting Supabase update...');
       const { error: updateError, data: updateData, status } = await supabase
         .from('sites')
         .update({
           name: editedSite.name,
           address: editedSite.address || null,
         })
-        .eq('id', siteId);
+        .eq('id', siteId)
+        .select();
+
+      console.log('[SiteView] Supabase response:', { updateError, updateData, status });
 
       if (updateError) {
         console.error('Site update error:', updateError);
