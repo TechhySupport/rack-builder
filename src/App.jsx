@@ -428,23 +428,43 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     // Save to Supabase
     try {
       const builderRackKey = `local-rack-${updatedRack.rackNumber || activeIndex + 1}`;
-      const { error: updateError } = await supabase
+      console.log('[saveRackProperties] Saving:', {
+        builderRackKey,
+        name: updatedRack.rackName,
+        site: updatedRack.site,
+        location: updatedRack.location,
+        room: updatedRack.room,
+        description: updatedRack.description,
+        notes: updatedRack.notes
+      });
+
+      const { error: updateError, data: updateData } = await supabase
         .from('racks')
         .update({
           name: updatedRack.rackName,
           identifier: updatedRack.rackNumber || null,
           ru_capacity: updatedRack.maxRU,
+          site: updatedRack.site || null,
+          location: updatedRack.location || null,
+          room: updatedRack.room || null,
+          description: updatedRack.description || null,
+          notes: updatedRack.notes || null,
         })
-        .eq('builder_rack_key', builderRackKey);
+        .eq('builder_rack_key', builderRackKey)
+        .select();
+
+      console.log('[saveRackProperties] Response:', { updateError, updateData });
 
       if (updateError) {
-        setWorkspaceSaveMessage(`Rack properties save failed: ${updateError.message}`);
+        console.error('[saveRackProperties] Error:', updateError);
+        setWorkspaceSaveMessage(`Rack properties save failed: ${updateError.code || 'unknown'} - ${updateError.message}`);
         return;
       }
 
       setWorkspaceSaveMessage('Rack properties saved to workspace!');
       setTimeout(() => setWorkspaceSaveMessage(''), 3000);
     } catch (err) {
+      console.error('[saveRackProperties] Exception:', err);
       setWorkspaceSaveMessage(`Rack properties save failed: ${err.message}`);
     }
   }
