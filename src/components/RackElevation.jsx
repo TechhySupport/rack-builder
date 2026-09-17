@@ -29,7 +29,7 @@ import {
 // ── Layout constants ──────────────────────────────────────────────────────────
 const RU_H      = 28;   // px per rack unit
 const RACK_W    = 520;  // physical rack frame width
-const LABEL_W   = 178;  // label zone to the right of the rack
+const LABEL_W   = 280;  // label zone to the right of the rack
 const TOTAL_W   = RACK_W + LABEL_W;
 const HDR_H     = 44;
 const FTR_H     = 22;
@@ -243,7 +243,7 @@ export function RackElevation({ rack, viewSide = 'front', showDataWiring = true,
               fontSize={9} fill={C_LABEL}
               fontFamily="system-ui, -apple-system, sans-serif"
               fontWeight={400}
-            >{trunc(row.item.label, 22)}</text>
+            >{trunc(row.item.label, 40)}</text>
           </g>
         );
       }
