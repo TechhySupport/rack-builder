@@ -480,6 +480,20 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         return;
       }
 
+      // Verify the update actually worked by fetching fresh data
+      const { data: freshData, error: freshError } = await supabase
+        .from('racks')
+        .select('*')
+        .eq('builder_rack_key', builderRackKey)
+        .single();
+      console.log('[saveRackProperties] Fresh verification:', { freshError, freshData });
+      if (freshData?.site_id !== updatedRack.site_id) {
+        console.warn('[saveRackProperties] WARNING: site_id did not actually update!', {
+          expected: updatedRack.site_id,
+          actual: freshData?.site_id
+        });
+      }
+
       setWorkspaceSaveMessage('Rack properties saved to workspace!');
       setTimeout(() => setWorkspaceSaveMessage(''), 3000);
     } catch (err) {
