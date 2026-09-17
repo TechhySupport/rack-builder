@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage.jsx';
 import ComingSoonLanding from './components/ComingSoonLanding.jsx';
 import AuthPage from './components/AuthPage.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import SiteView from './components/SiteView.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
 import { supabase } from './lib/supabase.js';
 import './marketing.css';
@@ -167,7 +168,10 @@ export default function Root() {
   if (passwordRecovery || invitationSetup) return <AuthPage recovery={passwordRecovery} invitation={invitationSetup} onBack={() => setView('landing')} onRecoveryComplete={completeCredentialSetup} />;
   if (session && authenticatedView === 'builder') return <App session={session} onDashboard={openDashboard} onSettings={openSettings} onSignOut={signOut} />;
   if (session && authenticatedView === 'settings') return <SettingsPage session={session} onDashboard={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
-  if (session && authenticatedView === 'site') return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSignOut={signOut} />;
+  if (session && authenticatedView === 'site') {
+    const siteId = new URLSearchParams(window.location.search).get('siteId');
+    return <SiteView session={session} siteId={siteId} onBack={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+  }
   if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSignOut={signOut} />;
   if (view === 'auth') return <AuthPage initialMode={authMode} onModeChange={changeAuthMode} onBack={leaveAuth} onAuthenticated={completeAuthentication} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
