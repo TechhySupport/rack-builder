@@ -447,9 +447,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
 
     // Save to Supabase
     try {
-      const builderRackKey = `local-rack-${updatedRack.rackNumber || activeIndex + 1}`;
-      console.log('[saveRackProperties] Saving:', {
-        builderRackKey,
+      console.log('[saveRackProperties] Saving rack:', {
+        rackId: updatedRack.id,
         name: updatedRack.rackName,
         site_id: updatedRack.site_id,
         level: updatedRack.level,
@@ -466,7 +465,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           level: updatedRack.level || null,
           notes: updatedRack.notes || null,
         })
-        .eq('builder_rack_key', builderRackKey)
+        .eq('id', updatedRack.id)
         .select();
 
       console.log('[saveRackProperties] Response:', { updateError, updateData });
@@ -484,7 +483,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       const { data: freshData, error: freshError } = await supabase
         .from('racks')
         .select('*')
-        .eq('builder_rack_key', builderRackKey)
+        .eq('id', updatedRack.id)
         .single();
       console.log('[saveRackProperties] Fresh verification:', { freshError, freshData });
       console.log('[saveRackProperties] site_id comparison:', {
