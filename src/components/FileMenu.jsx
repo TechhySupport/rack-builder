@@ -17,7 +17,7 @@ const IconChevron = () => (
   </svg>
 );
 
-export default function FileMenu({ racks, activeRack, frameRef, onImport, onRequireAuth, onExportCurrentPng, onExportAllPng }) {
+export default function FileMenu({ racks, activeRack, frameRef, onImport, onNewRack, onRequireAuth, onExportCurrentPng, onExportAllPng }) {
   const [open,       setOpen]       = useState(false);
   const [jsonModal,  setJsonModal]  = useState(false);
   const [jsonText,   setJsonText]   = useState('');
@@ -217,6 +217,13 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onRequ
 
         {open && (
           <div className="file-menu-dropdown" role="menu">
+            {/* ── New ── */}
+            <button className="fmd-item" role="menuitem" onClick={() => { onNewRack?.(); closeMenu(); }}>
+              New Rack
+            </button>
+
+            <div className="fmd-divider" />
+
             {/* ── Import ── */}
             <div className="fmd-section-label">Import</div>
             <button className="fmd-item" role="menuitem" onClick={openJsonModal}>
