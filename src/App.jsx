@@ -470,6 +470,9 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         .select();
 
       console.log('[saveRackProperties] Response:', { updateError, updateData });
+      if (updateData && updateData.length > 0) {
+        console.log('[saveRackProperties] Updated record:', updateData[0]);
+      }
 
       if (updateError) {
         console.error('[saveRackProperties] Error:', updateError);
