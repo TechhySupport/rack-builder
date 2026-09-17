@@ -475,20 +475,25 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         return;
       }
 
+      const updatePayload = {
+        name: updatedRack.rackName,
+        identifier: updatedRack.rackNumber || null,
+        ru_capacity: updatedRack.maxRU,
+        site_id: updatedRack.site_id || null,
+        level: updatedRack.level || null,
+        notes: updatedRack.notes || null,
+      };
+      console.log('[saveRackProperties] Update payload:', updatePayload);
+      console.log('[saveRackProperties] Updating rack ID:', rackId);
+
       const { error: updateError, data: updateData } = await supabase
         .from('racks')
-        .update({
-          name: updatedRack.rackName,
-          identifier: updatedRack.rackNumber || null,
-          ru_capacity: updatedRack.maxRU,
-          site_id: updatedRack.site_id || null,
-          level: updatedRack.level || null,
-          notes: updatedRack.notes || null,
-        })
+        .update(updatePayload)
         .eq('id', rackId)
         .select();
 
-      console.log('[saveRackProperties] Response:', { updateError, updateData });
+      console.log('[saveRackProperties] Raw response:', { updateError, updateData });
+      console.log('[saveRackProperties] Rows affected:', updateData?.length || 0);
       if (updateData && updateData.length > 0) {
         console.log('[saveRackProperties] Updated record:', updateData[0]);
       }
