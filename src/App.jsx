@@ -555,7 +555,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         .order('created_at', { ascending: true });
       if (sitesError || !sites?.length) return;
 
-      const { data: racks: dbRacks, error: racksError } = await supabase
+      const { data: dbRacks, error: racksError } = await supabase
         .from('racks')
         .select('id, ru_capacity, name, identifier, doc_status')
         .in('site_id', sites.map((s) => s.id))
