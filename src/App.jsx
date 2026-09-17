@@ -115,6 +115,51 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     loadInitialData();
   }, [session?.user?.id]);
 
+  // ── Load specific rack from URL parameter ────────────────────────────────────
+  useEffect(() => {
+    const loadSpecificRack = async () => {
+      if (!session || !supabase) return;
+      const params = new URLSearchParams(window.location.search);
+      const rackId = params.get('rackId');
+      if (!rackId) return;
+
+      try {
+        const { data: dbRack, error: rackError } = await supabase
+          .from('racks')
+          .select('id, ru_capacity, name, identifier, doc_status')
+          .eq('id', rackId)
+          .single();
+        if (rackError || !dbRack) return;
+
+        const { data: devices, error: devicesError } = await supabase
+          .from('devices')
+          .select('*')
+          .eq('rack_id', rackId)
+          .order('starting_ru', { ascending: false });
+        if (devicesError || !devices) return;
+
+        const loadedRack = normalizeRackData({
+          rackName: dbRack.name || `Rack ${dbRack.identifier || ''}`,
+          rackNumber: dbRack.identifier,
+          maxRU: dbRack.ru_capacity,
+          items: devices.map((dev) => ({
+            startRU: dev.starting_ru,
+            endRU: dev.starting_ru - dev.ru_height + 1,
+            type: dev.device_type === 'network_switch' ? 'switch' : dev.device_type,
+            label: dev.name,
+          })),
+        });
+
+        setRacks([loadedRack]);
+        setActiveIndex(0);
+      } catch (error) {
+        console.error('Error loading rack:', error);
+      }
+    };
+
+    loadSpecificRack();
+  }, [session?.user?.id]);
+
   // ── Auto-save to Supabase (debounced) ───────────────────────────────────────
   useEffect(() => {
     if (!session || !supabase) return;

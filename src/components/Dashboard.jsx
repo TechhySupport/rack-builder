@@ -9,7 +9,7 @@ function formatUpdatedAt(value) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value));
 }
 
-export default function Dashboard({ session, onOpenBuilder, onSignOut }) {
+export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOut }) {
   const [organisations, setOrganisations] = useState([]);
   const [sites, setSites] = useState([]);
   const [racks, setRacks] = useState([]);
@@ -273,14 +273,14 @@ export default function Dashboard({ session, onOpenBuilder, onSignOut }) {
           <section className="dashboard-section">
             <div className="section-heading"><div><p className="dashboard-kicker">Sites</p><h2>Your locations</h2></div><button className="dashboard-text-action" onClick={() => setModal('site')}>Add site <Plus size={15} /></button></div>
             {sites.length === 0 ? <div className="dashboard-inline-empty"><MapPin size={22} /><div><h3>No sites yet</h3><p>Add your first building, campus, or customer location to begin documenting its racks.</p></div><button className="dashboard-secondary" onClick={() => setModal('site')}>Add site</button></div> : <div className="site-grid">
-              {sites.map((site) => <article className="site-card" key={site.id}><div className="site-card-icon"><MapPin size={18} /></div><div className="site-card-copy"><h3>{site.name}</h3><p>{site.address || 'Address not set'}</p><span>{racksBySite[site.id] || 0} {racksBySite[site.id] === 1 ? 'rack' : 'racks'}</span></div><ChevronRight size={19} /></article>)}
+              {sites.map((site) => <article className="site-card" key={site.id} onClick={() => onOpenSite?.(site.id)} style={{ cursor: 'pointer' }}><div className="site-card-icon"><MapPin size={18} /></div><div className="site-card-copy"><h3>{site.name}</h3><p>{site.address || 'Address not set'}</p><span>{racksBySite[site.id] || 0} {racksBySite[site.id] === 1 ? 'rack' : 'racks'}</span></div><ChevronRight size={19} /></article>)}
             </div>}
           </section>
 
           <section className="dashboard-section dashboard-racks-section">
             <div className="section-heading"><div><p className="dashboard-kicker">Rack inventory</p><h2>Recently updated racks</h2></div><button className="dashboard-text-action" onClick={onOpenBuilder}>Open builder <ChevronRight size={15} /></button></div>
             {racks.length === 0 ? <div className="dashboard-inline-empty"><Server size={22} /><div><h3>No racks documented</h3><p>Use the rack builder to start planning your first cabinet.</p></div><button className="dashboard-secondary" onClick={onOpenBuilder}>Open builder</button></div> : <div className="rack-list">
-              {racks.slice(0, 6).map((rack) => <button className="rack-row" key={rack.id} onClick={onOpenBuilder}><span className="rack-badge">{rack.ru_capacity}U</span><span><strong>{rack.name}</strong><small>{sites.find((site) => site.id === rack.site_id)?.name || 'Unassigned site'}{rack.identifier ? ` · ${rack.identifier}` : ''}</small></span><span className="rack-status">{rack.doc_status}</span><time>{formatUpdatedAt(rack.updated_at)}</time><ChevronRight size={18} /></button>)}
+              {racks.slice(0, 6).map((rack) => <button className="rack-row" key={rack.id} onClick={() => onOpenBuilder(rack.id)}><span className="rack-badge">{rack.ru_capacity}U</span><span><strong>{rack.name}</strong><small>{sites.find((site) => site.id === rack.site_id)?.name || 'Unassigned site'}{rack.identifier ? ` · ${rack.identifier}` : ''}</small></span><span className="rack-status">{rack.doc_status}</span><time>{formatUpdatedAt(rack.updated_at)}</time><ChevronRight size={18} /></button>)}
             </div>}
           </section>
         </>}

@@ -11,6 +11,7 @@ import './marketing.css';
 const BUILDER_PATH = '/b/builder';
 const DASHBOARD_PATH = '/dashboard';
 const SETTINGS_PATH = '/settings';
+const SITE_PATH = '/site';
 const AUTH_PATHS = {
   signin: '/a/login',
   signup: '/a/signup',
@@ -21,6 +22,7 @@ function viewFromPathname() {
   if (window.location.pathname === BUILDER_PATH) return 'builder';
   if (window.location.pathname === DASHBOARD_PATH) return 'dashboard';
   if (window.location.pathname === SETTINGS_PATH) return 'settings';
+  if (window.location.pathname === SITE_PATH) return 'site';
   if (Object.values(AUTH_PATHS).includes(window.location.pathname)) return 'auth';
   return 'landing';
 }
@@ -37,7 +39,7 @@ export default function Root() {
   const initialView = viewFromPathname();
   const [view, setView] = useState(initialView);
   const [authenticatedView, setAuthenticatedView] = useState(
-    () => ['builder', 'settings'].includes(initialView) ? initialView : 'dashboard',
+    () => ['builder', 'settings', 'site'].includes(initialView) ? initialView : 'dashboard',
   );
   const [authReturnView, setAuthReturnView] = useState(authReturnViewFromUrl);
   const [authMode, setAuthMode] = useState(authModeFromPathname);
@@ -74,8 +76,9 @@ export default function Root() {
     setAuthenticatedView(authReturnView === 'builder' ? 'builder' : 'dashboard');
   }
 
-  function openBuilder() {
-    window.history.pushState({}, '', BUILDER_PATH);
+  function openBuilder(rackId) {
+    const path = rackId ? `${BUILDER_PATH}?rackId=${encodeURIComponent(rackId)}` : BUILDER_PATH;
+    window.history.pushState({}, '', path);
     setView('builder');
     setAuthenticatedView('builder');
   }
@@ -90,6 +93,12 @@ export default function Root() {
     window.history.pushState({}, '', SETTINGS_PATH);
     setView('settings');
     setAuthenticatedView('settings');
+  }
+
+  function openSite(siteId) {
+    window.history.pushState({}, '', `${SITE_PATH}?siteId=${encodeURIComponent(siteId)}`);
+    setView('site');
+    setAuthenticatedView('site');
   }
 
   async function signOut() {
@@ -158,7 +167,8 @@ export default function Root() {
   if (passwordRecovery || invitationSetup) return <AuthPage recovery={passwordRecovery} invitation={invitationSetup} onBack={() => setView('landing')} onRecoveryComplete={completeCredentialSetup} />;
   if (session && authenticatedView === 'builder') return <App session={session} onDashboard={openDashboard} onSettings={openSettings} onSignOut={signOut} />;
   if (session && authenticatedView === 'settings') return <SettingsPage session={session} onDashboard={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
-  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+  if (session && authenticatedView === 'site') return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSignOut={signOut} />;
+  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSignOut={signOut} />;
   if (view === 'auth') return <AuthPage initialMode={authMode} onModeChange={changeAuthMode} onBack={leaveAuth} onAuthenticated={completeAuthentication} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
   if (!previewAccess) return <ComingSoonLanding onUnlock={() => setPreviewAccess(true)} />;
