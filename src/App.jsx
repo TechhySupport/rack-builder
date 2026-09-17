@@ -419,12 +419,34 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     setPropertiesItemIndex(null);
   }
 
-  function saveRackProperties(values) {
-    if (!activeRack) return;
-    handleRackChange({ ...activeRack, ...values, maxRU: Math.max(1, Number(values.maxRU) || 1) });
+  async function saveRackProperties(values) {
+    if (!activeRack || !supabase || !session) return;
+    const updatedRack = { ...activeRack, ...values, maxRU: Math.max(1, Number(values.maxRU) || 1) };
+    handleRackChange(updatedRack);
     setRackPropertiesOpen(false);
-    setWorkspaceSaveMessage('Rack properties saved!');
-    setTimeout(() => setWorkspaceSaveMessage(''), 3000);
+
+    // Save to Supabase
+    try {
+      const builderRackKey = `local-rack-${updatedRack.rackNumber || activeIndex + 1}`;
+      const { error: updateError } = await supabase
+        .from('racks')
+        .update({
+          name: updatedRack.rackName,
+          identifier: updatedRack.rackNumber || null,
+          ru_capacity: updatedRack.maxRU,
+        })
+        .eq('builder_rack_key', builderRackKey);
+
+      if (updateError) {
+        setWorkspaceSaveMessage(`Rack properties save failed: ${updateError.message}`);
+        return;
+      }
+
+      setWorkspaceSaveMessage('Rack properties saved to workspace!');
+      setTimeout(() => setWorkspaceSaveMessage(''), 3000);
+    } catch (err) {
+      setWorkspaceSaveMessage(`Rack properties save failed: ${err.message}`);
+    }
   }
 
   function removeDevice(itemIndex) {
