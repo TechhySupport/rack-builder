@@ -105,6 +105,25 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     try { localStorage.setItem(STORAGE_KEY_INDEX, String(activeIndex)); } catch {}
   }, [activeIndex]);
 
+  // ── Load from Supabase if localStorage is empty ─────────────────────────────
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (!session || !supabase) return;
+      const savedRacks = localStorage.getItem(STORAGE_KEY_RACKS);
+      if (!savedRacks) await loadFromWorkspace();
+    };
+    loadInitialData();
+  }, [session?.user?.id]);
+
+  // ── Auto-save to Supabase (debounced) ───────────────────────────────────────
+  useEffect(() => {
+    if (!session || !supabase) return;
+    const autoSaveTimer = setTimeout(() => {
+      saveToWorkspace();
+    }, 3000);
+    return () => clearTimeout(autoSaveTimer);
+  }, [racks]);
+
   // ── Panel resize drag handlers ───────────────────────────────────────────
   const onResizerMouseDown = useCallback((e) => {
     e.preventDefault();
@@ -471,6 +490,64 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
 
   async function handleExportAllPng() {
     await exportAllRacksAsZip(racks, allRacksContainerRef.current, allRacksSimpleRef.current);
+  }
+
+  async function loadFromWorkspace() {
+    if (!supabase || !session) return;
+    try {
+      const { data: memberships, error: membershipError } = await supabase
+        .from('organisation_members')
+        .select('organisation_id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active');
+      if (membershipError || !memberships?.length) return;
+
+      const organisationIds = memberships.map((m) => m.organisation_id);
+      const { data: sites, error: sitesError } = await supabase
+        .from('sites')
+        .select('id, organisation_id')
+        .in('organisation_id', organisationIds)
+        .order('created_at', { ascending: true });
+      if (sitesError || !sites?.length) return;
+
+      const { data: racks: dbRacks, error: racksError } = await supabase
+        .from('racks')
+        .select('id, ru_capacity, name, identifier, doc_status')
+        .in('site_id', sites.map((s) => s.id))
+        .eq('doc_status', 'current');
+      if (racksError || !dbRacks?.length) return;
+
+      const loadedRacks = await Promise.all(
+        dbRacks.map(async (dbRack) => {
+          const { data: devices, error: devicesError } = await supabase
+            .from('devices')
+            .select('*')
+            .eq('rack_id', dbRack.id)
+            .order('starting_ru', { ascending: false });
+          if (devicesError || !devices) return null;
+
+          return normalizeRackData({
+            rackName: dbRack.name || `Rack ${dbRack.identifier || ''}`,
+            rackNumber: dbRack.identifier,
+            maxRU: dbRack.ru_capacity,
+            items: devices.map((dev) => ({
+              startRU: dev.starting_ru,
+              endRU: dev.starting_ru - dev.ru_height + 1,
+              type: dev.device_type === 'network_switch' ? 'switch' : dev.device_type,
+              label: dev.name,
+            })),
+          });
+        })
+      );
+
+      const validRacks = loadedRacks.filter(Boolean);
+      if (validRacks.length > 0) {
+        setRacks(validRacks);
+        setActiveIndex(0);
+      }
+    } catch (error) {
+      console.error('Error loading from workspace:', error);
+    }
   }
 
   async function saveToWorkspace() {
