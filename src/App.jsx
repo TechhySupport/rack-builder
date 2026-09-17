@@ -656,15 +656,21 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
   async function saveToWorkspace() {
     if (!supabase || !session) return;
     setSavingWorkspace(true);
-    setWorkspaceSaveMessage('');
+    setWorkspaceSaveMessage('Saving to workspace...');
     let provisionedWorkspace = false;
+    console.log('saveToWorkspace: starting...');
+
     const { data: memberships, error: membershipError } = await supabase
       .from('organisation_members')
       .select('organisation_id')
       .eq('user_id', session.user.id)
       .eq('status', 'active');
+    console.log('memberships:', { memberships, membershipError });
+
     if (membershipError) {
-      setWorkspaceSaveMessage(membershipError.message);
+      const msg = `Membership error: ${membershipError.message}`;
+      console.error(msg);
+      setWorkspaceSaveMessage(msg);
       setSavingWorkspace(false);
       return;
     }
