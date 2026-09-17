@@ -65,7 +65,7 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
     setSaveMessage('');
 
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError, data: updateData, status } = await supabase
         .from('sites')
         .update({
           name: editedSite.name,
@@ -74,15 +74,18 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
         .eq('id', siteId);
 
       if (updateError) {
-        setSaveMessage('Error saving site: ' + updateError.message);
+        console.error('Site update error:', updateError);
+        setSaveMessage(`Error saving site: ${updateError.code || 'unknown'} - ${updateError.message}`);
         setSaving(false);
         return;
       }
 
+      console.log('Site updated successfully:', { status, data: updateData });
       setSite(editedSite);
-      setSaveMessage('Site properties saved!');
+      setSaveMessage('Site properties saved to workspace!');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (err) {
+      console.error('Exception saving site:', err);
       setSaveMessage('Error: ' + err.message);
     } finally {
       setSaving(false);
