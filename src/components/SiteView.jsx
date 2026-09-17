@@ -213,7 +213,10 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <button
-                onClick={saveSiteProperties}
+                onClick={() => {
+                  console.log('[Button clicked] saveSiteProperties');
+                  saveSiteProperties();
+                }}
                 disabled={saving}
                 style={{
                   padding: '10px 16px',
