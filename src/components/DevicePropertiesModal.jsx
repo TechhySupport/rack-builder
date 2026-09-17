@@ -796,9 +796,7 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
             <button
               type="button"
               className="device-properties-delete"
-              onClick={() => {
-                if (window.confirm("Delete this device from the rack? This cannot be undone.")) onDelete();
-              }}
+              onClick={onDelete}
             >
               <Trash2 size={15} />
               Delete device
