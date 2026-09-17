@@ -5,9 +5,12 @@ import '../dashboard.css';
 
 export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
   const [site, setSite] = useState(null);
+  const [editedSite, setEditedSite] = useState(null);
   const [racks, setRacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     loadSiteData();
@@ -34,6 +37,7 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
       }
 
       setSite(siteData);
+      setEditedSite(siteData);
 
       const { data: racksData, error: racksError } = await supabase
         .from('racks')
@@ -52,6 +56,36 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveSiteProperties() {
+    if (!editedSite || !supabase) return;
+    setSaving(true);
+    setSaveMessage('');
+
+    try {
+      const { error: updateError } = await supabase
+        .from('sites')
+        .update({
+          name: editedSite.name,
+          address: editedSite.address || null,
+        })
+        .eq('id', siteId);
+
+      if (updateError) {
+        setSaveMessage('Error saving site: ' + updateError.message);
+        setSaving(false);
+        return;
+      }
+
+      setSite(editedSite);
+      setSaveMessage('Site properties saved!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (err) {
+      setSaveMessage('Error: ' + err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -108,12 +142,77 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
         <section className="dashboard-section">
           <div className="section-heading">
             <div>
-              <p className="dashboard-kicker">SITE</p>
-              <h1 style={{ margin: '0 0 12px 0', fontSize: '28px' }}>{site.name}</h1>
-              <p style={{ color: '#65726d', marginTop: '4px' }}>
-                <MapPin size={16} style={{ display: 'inline', marginRight: '6px' }} />
-                {site.address || 'Address not set'}
-              </p>
+              <p className="dashboard-kicker">SITE PROPERTIES</p>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '20px' }}>Edit Site Details</h2>
+            </div>
+          </div>
+
+          {saveMessage && (
+            <div style={{
+              marginBottom: '16px',
+              padding: '12px',
+              borderRadius: '6px',
+              backgroundColor: saveMessage.includes('Error') ? '#fef2f2' : '#f0fdf4',
+              color: saveMessage.includes('Error') ? '#dc2626' : '#15803d',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}>
+              {saveMessage}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gap: '16px', maxWidth: '600px' }}>
+            <label style={{ display: 'grid', gap: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a2030' }}>Site Name</span>
+              <input
+                type="text"
+                value={editedSite?.name || ''}
+                onChange={(e) => setEditedSite({ ...editedSite, name: e.target.value })}
+                style={{
+                  padding: '10px 12px',
+                  border: '1px solid #d9e1db',
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  fontFamily: 'Manrope, sans-serif'
+                }}
+              />
+            </label>
+
+            <label style={{ display: 'grid', gap: '6px' }}>
+              <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a2030' }}>Address</span>
+              <textarea
+                value={editedSite?.address || ''}
+                onChange={(e) => setEditedSite({ ...editedSite, address: e.target.value })}
+                style={{
+                  padding: '10px 12px',
+                  border: '1px solid #d9e1db',
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  fontFamily: 'Manrope, sans-serif',
+                  minHeight: '80px',
+                  resize: 'vertical'
+                }}
+              />
+            </label>
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <button
+                onClick={saveSiteProperties}
+                disabled={saving}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#1f694d',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  opacity: saving ? 0.6 : 1
+                }}
+              >
+                {saving ? 'Saving...' : 'Save Site'}
+              </button>
             </div>
           </div>
         </section>
