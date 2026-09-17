@@ -187,6 +187,7 @@ export function RackElevation({ rack, viewSide = 'front', showDataWiring = true,
           key={`device-${idx}`}
           className={onPatchDevice ? `rack-device-patchable${patchSource === itemIndex ? ' rack-device-patch-source' : ''}` : onStartMoveItem ? 'rack-device-draggable' : undefined}
           onPointerDown={(event) => {
+            if (event.button !== 0) return;
             if (event.detail >= 2) {
               onOpenProperties?.(itemIndex);
               return;
