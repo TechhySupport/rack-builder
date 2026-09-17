@@ -88,6 +88,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
   const [rackPropertiesOpen, setRackPropertiesOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [sites, setSites] = useState([]);
   const frameRef             = useRef(null);
   const canvasRackRef        = useRef(null);
   const allRacksContainerRef = useRef(null);
@@ -113,6 +114,25 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       if (!savedRacks) await loadFromWorkspace();
     };
     loadInitialData();
+  }, [session?.user?.id]);
+
+  // ── Load sites for the site dropdown ─────────────────────────────────────────
+  useEffect(() => {
+    const loadSites = async () => {
+      if (!session || !supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('sites')
+          .select('id, name')
+          .order('name', { ascending: true });
+        if (!error && data) {
+          setSites(data);
+        }
+      } catch (err) {
+        console.error('Failed to load sites:', err);
+      }
+    };
+    loadSites();
   }, [session?.user?.id]);
 
   // ── Load specific rack from URL parameter ────────────────────────────────────
@@ -431,6 +451,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       console.log('[saveRackProperties] Saving:', {
         builderRackKey,
         name: updatedRack.rackName,
+        site_id: updatedRack.site_id,
         level: updatedRack.level,
         notes: updatedRack.notes
       });
@@ -441,6 +462,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           name: updatedRack.rackName,
           identifier: updatedRack.rackNumber || null,
           ru_capacity: updatedRack.maxRU,
+          site_id: updatedRack.site_id || null,
           level: updatedRack.level || null,
           notes: updatedRack.notes || null,
         })
@@ -879,7 +901,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           </div>
         </div>
       )}
-      <RackPropertiesModal rack={rackPropertiesOpen ? activeRack : null} onSave={saveRackProperties} onClose={() => setRackPropertiesOpen(false)} />
+      <RackPropertiesModal rack={rackPropertiesOpen ? activeRack : null} sites={sites} onSave={saveRackProperties} onClose={() => setRackPropertiesOpen(false)} />
 
       {/* ── Hidden off-screen container: diagram mode ZIP export ── */}
       <div
