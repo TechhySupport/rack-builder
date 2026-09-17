@@ -85,7 +85,7 @@ export function devicePortProfile(item, face = item?.connectionFace) {
 function Port({ x, y, w, h, medium = 'copper', direction, name, active = false, selected = false, connected = false, accent, onSelect }) {
   const isPower = medium === 'power';
   const roleColor = direction === 'input' ? '#f59e0b' : '#3b82f6';
-  const color = medium === 'fibre' ? '#38bdf8' : '#2563eb';
+  const color = medium === 'fibre' ? '#a855f7' : '#2563eb';
   const indicator = isPower ? roleColor : selected || connected ? color : accent || '#64748b';
   const portStroke = isPower ? roleColor : selected || connected ? color : accent || '#475569';
   const inset = Math.max(1, Math.min(w, h) * 0.13);
@@ -103,7 +103,7 @@ function Port({ x, y, w, h, medium = 'copper', direction, name, active = false, 
             <circle cx={x + w / 2} cy={y + h * 0.72} r={Math.max(0.7, Math.min(1.5, Math.min(w, h) * 0.1))} fill={roleColor} />
           </>
         : medium === 'fibre'
-        ? <><rect x={x + w * 0.2} y={y + h * 0.22} width={w * 0.22} height={h * 0.56} fill="#0f172a" /><rect x={x + w * 0.58} y={y + h * 0.22} width={w * 0.22} height={h * 0.56} fill="#0f172a" /></>
+        ? <circle cx={x + w / 2} cy={y + h / 2} r={Math.max(1.4, Math.min(w, h) * 0.32)} fill="#a855f7" stroke="#6d28d9" strokeWidth={0.4} />
         : <rect x={x + 1} y={y + 1} width={w - 2} height={Math.max(2, h * 0.38)} fill={accent && !selected && !connected ? accent : '#334155'} opacity={accent && !selected && !connected ? 0.75 : 1} rx={0.35} />}
       <circle cx={x + w / 2} cy={y - 2} r={1.15} fill={active ? indicator : '#64748b'} />
     </g>
@@ -155,14 +155,14 @@ export function RearDeviceFace({ x, y, w, h, label, type, selectedPort, connecte
 //  PATCH PANEL  (24-port_patch_panel.svg)
 // ─────────────────────────────────────────────────────────────────────────────
 export function PatchPanelFace({ x, y, w, h, label, selectedPort, connectedPorts, onSelectPort, ...connectionConfig }) {
-  const { points, count, accents } = devicePortProfile(connectionConfig);
+  const { points, count, medium, accents } = devicePortProfile(connectionConfig);
   const bankW = Math.min(w * 0.72, count > 24 ? w * 0.82 : w * 0.62);
   const bankX = x + 18;
   return (
     <Face x={x} y={y} w={w} h={h} fill="#d4d8df">
       <rect x={x + 5} y={y + 4} width={7} height={h - 8} fill="#94a3b8" rx={1} />
-      <PortBank x={bankX} y={y + 5} w={bankW} h={h - 10} points={points} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
-      <text x={x + w - 10} y={y + h / 2} textAnchor="end" dominantBaseline="middle" fontSize={6} fill="#334155" fontFamily="'Courier New', monospace">CAT6A</text>
+      <PortBank x={bankX} y={y + 5} w={bankW} h={h - 10} points={points} medium={medium} compact selectedPort={selectedPort} connectedPorts={connectedPorts} onSelectPort={onSelectPort} accents={accents} />
+      <text x={x + w - 10} y={y + h / 2} textAnchor="end" dominantBaseline="middle" fontSize={6} fill="#334155" fontFamily="'Courier New', monospace">{medium === 'fibre' ? 'FIBER' : 'CAT6A'}</text>
       <text x={x + w - 10} y={y + h - 5} textAnchor="end" fontSize={5} fill="#64748b" fontFamily="'Courier New', monospace">{count} PORT</text>
     </Face>
   );

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
 import {
+  ALL_TYPES,
   connectionGroupsFromProfile,
   connectionPointsForItem,
   defaultConnectionPointGroups,
+  defaultLabel,
   expandConnectionPointGroups,
   groupConnectionPoints,
 } from "../utils/rackUtils";
@@ -43,6 +45,7 @@ const MODEL_CATALOG_TYPES = new Set([
   "nvr",
   "ups",
 ]);
+const DEVICE_TYPE_OPTIONS = ALL_TYPES.filter((type) => type !== "empty");
 const SWITCH_PORT_PREFIXES = [
   {
     prefix: "Gi",
@@ -178,10 +181,10 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
   );
 
   if (!item) return null;
-  const isPatchPanel = item.type === "patch_panel";
-  const isSwitch = SWITCH_TYPES.has(item.type);
-  const isUps = item.type === "ups";
-  const isPdu = item.type === "pdu";
+  const isPatchPanel = values.type === "patch_panel";
+  const isSwitch = SWITCH_TYPES.has(values.type);
+  const isUps = values.type === "ups";
+  const isPdu = values.type === "pdu";
   const batteryAgeStatus = getBatteryAgeStatus(values.batteryInstalledDate);
   const groups = values.connectionGroups || [];
   const updateGroup = (index, update) =>
@@ -336,6 +339,34 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
     return true;
   }
 
+  function changeDeviceType(nextType) {
+    if (nextType === values.type) return;
+    const wasDefaultLabel = !values.label || values.label === defaultLabel(values.type);
+    const keepPoints = values.connectionPointsCustomized;
+    setProfileMessage("");
+    setValues({
+      ...values,
+      type: nextType,
+      label: wasDefaultLabel ? defaultLabel(nextType) : values.label,
+      brand: "",
+      customManufacturer: "",
+      model: "",
+      customModel: "",
+      switchBrandId: null,
+      switchModelId: null,
+      catalogBrandId: null,
+      catalogModelId: null,
+      savedBrandId: null,
+      modelCatalogLevel: null,
+      connectionProfileId: null,
+      connectionProfileVersion: null,
+      connectionProfileAppliedAt: null,
+      connectionProfileFingerprint: null,
+      connectionPointsCustomized: keepPoints,
+      connectionGroups: keepPoints ? groups : defaultConnectionPointGroups(nextType),
+    });
+  }
+
   function saveDevice(event) {
     event.preventDefault();
     const { connectionGroups, ...device } = values;
@@ -375,9 +406,20 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
             <X size={18} />
           </button>
         </header>
-        <div className="device-properties-type">
-          {item.type?.replace(/_/g, " ")}
-        </div>
+        <label className="device-properties-type">
+          <span>Device type</span>
+          <select
+            aria-label="Device type"
+            value={values.type}
+            onChange={(event) => changeDeviceType(event.target.value)}
+          >
+            {DEVICE_TYPE_OPTIONS.map((type) => (
+              <option key={type} value={type}>
+                {defaultLabel(type)}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="device-properties-fields">
           {FIELDS.map(([key, label]) => {
             if (key === "brand" && isSwitch)
@@ -393,12 +435,12 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
                   />
                 </div>
               );
-            if (key === "brand" && MODEL_CATALOG_TYPES.has(item.type))
+            if (key === "brand" && MODEL_CATALOG_TYPES.has(values.type))
               return (
                 <div className="device-property-field" key={key}>
                   <span>{label}</span>
                   <SwitchBrandCombobox
-                    deviceType={item.type}
+                    deviceType={values.type}
                     brandId={values.catalogBrandId}
                     savedBrandId={values.savedBrandId}
                     brandName={values.brand}
@@ -410,13 +452,13 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose, onD
               );
             if (
               key === "model" &&
-              (isSwitch || MODEL_CATALOG_TYPES.has(item.type))
+              (isSwitch || MODEL_CATALOG_TYPES.has(values.type))
             )
               return (
                 <div className="device-property-field" key={key}>
                   <span>{label}</span>
                   <SwitchModelCombobox
-                    deviceType={isSwitch ? "switch" : item.type}
+                    deviceType={isSwitch ? "switch" : values.type}
                     brandId={values.switchBrandId}
                     catalogBrandId={values.catalogBrandId}
                     savedBrandId={values.savedBrandId}
