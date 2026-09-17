@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import '../auth.css';
 
 const AUTH_TIMEOUT_MS = 15000;
-const AUTH_RESET_PATH = '/a/reset-password';
+const AUTH_RESET_PATH = '/reset/forgotten-password';
 
 function reportAuthDebug(event, details) {
   const log = event === 'failed' ? console.error : console.info;

@@ -14,7 +14,7 @@ const SETTINGS_PATH = '/settings';
 const AUTH_PATHS = {
   signin: '/a/login',
   signup: '/a/signup',
-  reset: '/a/reset-password',
+  reset: '/reset/forgotten-password',
 };
 
 function viewFromPathname() {
