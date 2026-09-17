@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { parseJsonInput, parseCsvRows, ALL_TYPES } from '../utils/rackUtils';
 import { readFileAsText, downloadJsonFile, exportRackAsPng } from '../utils/exportUtils';
+import { Home } from 'lucide-react';
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const IconFolder = () => (
@@ -17,7 +18,7 @@ const IconChevron = () => (
   </svg>
 );
 
-export default function FileMenu({ racks, activeRack, frameRef, onImport, onNewRack, onRequireAuth, onExportCurrentPng, onExportAllPng }) {
+export default function FileMenu({ racks, activeRack, frameRef, onImport, onOpenImportRackPicker, onNewRack, onRequireAuth, onExportCurrentPng, onExportAllPng, onDashboard }) {
   const [open,       setOpen]       = useState(false);
   const [jsonModal,  setJsonModal]  = useState(false);
   const [jsonText,   setJsonText]   = useState('');
@@ -76,6 +77,7 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onNewR
     } catch (err) { alert(`Read error: ${err.message}`); }
     e.target.value = '';
   }
+
 
   // ── Excel / CSV Import ──────────────────────────────────────────────────────
   async function handleSpreadsheet(e) {
@@ -204,6 +206,15 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onNewR
 
   return (
     <>
+      {/* ── Home button ─── */}
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={onDashboard}
+        title="Back to Dashboard"
+      >
+        <Home size={16} />
+      </button>
+
       {/* ── File button + dropdown ─── */}
       <div className="file-menu" ref={menuRef}>
         <button
@@ -231,6 +242,9 @@ export default function FileMenu({ racks, activeRack, frameRef, onImport, onNewR
             </button>
             <button className="fmd-item" role="menuitem" onClick={() => jsonFileRef.current.click()}>
               Open JSON File
+            </button>
+            <button className="fmd-item" role="menuitem" onClick={() => { onOpenImportRackPicker?.(); closeMenu(); }} title="Add one of your saved racks to this canvas">
+              Open
             </button>
             <button className="fmd-item" role="menuitem" onClick={() => spreadsheetRef.current.click()}>
               Import Excel / CSV
