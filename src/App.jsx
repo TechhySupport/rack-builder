@@ -434,10 +434,6 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           name: updatedRack.rackName,
           identifier: updatedRack.rackNumber || null,
           ru_capacity: updatedRack.maxRU,
-          location: updatedRack.location || null,
-          room: updatedRack.room || null,
-          description: updatedRack.description || null,
-          notes: updatedRack.notes || null,
         })
         .eq('builder_rack_key', builderRackKey);
 
