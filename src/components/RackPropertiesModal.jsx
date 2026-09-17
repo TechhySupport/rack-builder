@@ -5,10 +5,7 @@ const FIELDS = [
   ['rackName', 'Rack name'],
   ['rackNumber', 'Rack identifier'],
   ['maxRU', 'Total rack units (U)', 'number'],
-  ['site', 'Site'],
-  ['location', 'Location'],
-  ['room', 'Room / area'],
-  ['description', 'Description', 'textarea'],
+  ['level', 'Level / Floor'],
   ['notes', 'Notes', 'textarea'],
 ];
 

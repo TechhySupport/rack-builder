@@ -431,10 +431,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       console.log('[saveRackProperties] Saving:', {
         builderRackKey,
         name: updatedRack.rackName,
-        site: updatedRack.site,
-        location: updatedRack.location,
-        room: updatedRack.room,
-        description: updatedRack.description,
+        level: updatedRack.level,
         notes: updatedRack.notes
       });
 
@@ -444,10 +441,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           name: updatedRack.rackName,
           identifier: updatedRack.rackNumber || null,
           ru_capacity: updatedRack.maxRU,
-          site: updatedRack.site || null,
-          location: updatedRack.location || null,
-          room: updatedRack.room || null,
-          description: updatedRack.description || null,
+          level: updatedRack.level || null,
           notes: updatedRack.notes || null,
         })
         .eq('builder_rack_key', builderRackKey)
