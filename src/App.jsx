@@ -423,6 +423,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     if (!activeRack) return;
     handleRackChange({ ...activeRack, ...values, maxRU: Math.max(1, Number(values.maxRU) || 1) });
     setRackPropertiesOpen(false);
+    setWorkspaceSaveMessage('Rack properties saved!');
+    setTimeout(() => setWorkspaceSaveMessage(''), 3000);
   }
 
   function removeDevice(itemIndex) {
