@@ -160,11 +160,11 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     loadSpecificRack();
   }, [session?.user?.id]);
 
-  // ── Auto-save to Supabase (debounced) ───────────────────────────────────────
+  // ── Auto-save to Supabase (silent, debounced) ──────────────────────────────────
   useEffect(() => {
     if (!session || !supabase) return;
     const autoSaveTimer = setTimeout(() => {
-      saveToWorkspace();
+      silentSaveToWorkspace();
     }, 3000);
     return () => clearTimeout(autoSaveTimer);
   }, [racks]);
@@ -537,6 +537,40 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
 
   async function handleExportAllPng() {
     await exportAllRacksAsZip(racks, allRacksContainerRef.current, allRacksSimpleRef.current);
+  }
+
+  async function silentSaveToWorkspace() {
+    // Silent auto-save - no state updates, no UI interruption
+    if (!supabase || !session || !racks.length) return;
+    try {
+      const { data: memberships } = await supabase
+        .from('organisation_members')
+        .select('organisation_id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active');
+      if (!memberships?.length) return;
+
+      const organisationIds = memberships.map((m) => m.organisation_id);
+      let { data: site } = await supabase
+        .from('sites')
+        .select('id, organisation_id')
+        .in('organisation_id', organisationIds)
+        .limit(1)
+        .maybeSingle();
+      if (!site) return;
+
+      for (const [rackIndex, rack] of racks.entries()) {
+        const builderRackKey = `local-rack-${rack.rackNumber || rackIndex + 1}`;
+        await supabase
+          .from('racks')
+          .upsert({ organisation_id: site.organisation_id, site_id: site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
+          .select('id')
+          .single();
+      }
+    } catch (err) {
+      // Silently fail - no UI disruption
+      console.error('Auto-save:', err.message);
+    }
   }
 
   async function loadFromWorkspace() {
