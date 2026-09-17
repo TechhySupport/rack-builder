@@ -13,7 +13,7 @@ import { sampleData } from './data/sampleRacks';
 import { connectionPointsForItem, defaultConnectionPointGroups, expandConnectionPointGroups, isVerticalPdu, validateRackData, normalizeRackData } from './utils/rackUtils';
 import { exportAllRacksAsZip, exportCurrentRackBothViews } from './utils/exportAllPng';
 import { supabase } from './lib/supabase.js';
-import { ArrowRight, Cable, ChevronDown, Circle, Eraser, Eye, FileText, Highlighter, Image, LayoutTemplate, LineChart, Maximize, MousePointer2, Network, PenTool, Redo2, Search, Shapes, SlidersHorizontal, Sparkles, Square, Type, Undo2, Upload, Wrench, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowRight, Cable, ChevronDown, Circle, Copy, Eraser, Eye, FileText, Highlighter, Image, LayoutTemplate, LineChart, Maximize, MousePointer2, Network, PenTool, Pencil, Redo2, Search, Shapes, SlidersHorizontal, Sparkles, Square, Trash2, Type, Undo2, Upload, Wrench, ZoomIn, ZoomOut } from 'lucide-react';
 import { defaultLabel } from './utils/rackUtils';
 import './styles.css';
 
@@ -86,6 +86,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
   const [viewSide, setViewSide] = useState('front');
   const [propertiesItemIndex, setPropertiesItemIndex] = useState(null);
   const [rackPropertiesOpen, setRackPropertiesOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   const frameRef             = useRef(null);
   const canvasRackRef        = useRef(null);
   const allRacksContainerRef = useRef(null);
@@ -143,6 +144,19 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       window.removeEventListener('pointerup', onPointerUp);
     };
   }, [movingItemIndex, activeRack]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('pointerdown', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('keydown', closeMenu);
+    return () => {
+      window.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('keydown', closeMenu);
+    };
+  }, [contextMenu]);
 
   function applyRacks(newRacks) {
     const normalized = normalizeAll(newRacks);
@@ -330,6 +344,57 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     if (!activeRack) return;
     handleRackChange({ ...activeRack, ...values, maxRU: Math.max(1, Number(values.maxRU) || 1) });
     setRackPropertiesOpen(false);
+  }
+
+  function removeDevice(itemIndex) {
+    if (!activeRack) return;
+    const items = activeRack.items.filter((_, index) => index !== itemIndex);
+    const connections = (activeRack.connections || [])
+      .filter((connection) => connection.from !== itemIndex && connection.to !== itemIndex)
+      .map((connection) => ({
+        ...connection,
+        from: connection.from > itemIndex ? connection.from - 1 : connection.from,
+        to: connection.to > itemIndex ? connection.to - 1 : connection.to,
+      }));
+    handleRackChange({ ...activeRack, items, connections });
+    setPropertiesItemIndex(null);
+  }
+
+  function duplicateDevice(itemIndex) {
+    if (!activeRack) return;
+    const source = activeRack.items[itemIndex];
+    if (!source) return;
+    const maxRU = activeRack.maxRU || 42;
+
+    if (isVerticalPdu(source)) {
+      handleRackChange({ ...activeRack, items: [...activeRack.items, { ...source }] });
+      return;
+    }
+
+    const height = Math.abs(source.startRU - source.endRU) + 1;
+    const occupied = new Set();
+    activeRack.items.forEach((item) => {
+      if (isVerticalPdu(item)) return;
+      for (let ru = item.endRU; ru <= item.startRU; ru += 1) occupied.add(ru);
+    });
+    let endRU = null;
+    for (let candidate = 1; candidate <= maxRU - height + 1; candidate += 1) {
+      let free = true;
+      for (let ru = candidate; ru < candidate + height; ru += 1) {
+        if (occupied.has(ru)) { free = false; break; }
+      }
+      if (free) { endRU = candidate; break; }
+    }
+    if (endRU === null) {
+      setWorkspaceSaveMessage('No free rack space to duplicate this device.');
+      return;
+    }
+    const clone = { ...source, startRU: endRU + height - 1, endRU, label: source.label ? `${source.label} (copy)` : source.label };
+    handleRackChange({ ...activeRack, items: [...activeRack.items, clone] });
+  }
+
+  function openDeviceContextMenu(itemIndex, event) {
+    setContextMenu({ itemIndex, x: event.clientX, y: event.clientY });
   }
 
   function addCanvasElement(kind, label, extra = {}) {
@@ -568,9 +633,21 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       <div className={`canva-workspace${libraryOpen ? ' canva-workspace--library-open' : ''}`}>
         <aside className="tool-rail">{[{ id: 'devices', icon: Network, label: 'Devices' }, { id: 'elements', icon: Sparkles, label: 'Elements' }, { id: 'wiring', icon: Cable, label: 'Wiring' }, { id: 'text', icon: Type, label: 'Text' }, { id: 'shapes', icon: Shapes, label: 'Shapes' }, { id: 'images', icon: Image, label: 'Images' }, { id: 'tools', icon: Wrench, label: 'Tools' }, { id: 'templates', icon: LayoutTemplate, label: 'Templates' }].map(({ id, icon: Icon, label }) => <button key={id} className={activeTool === id ? 'active' : ''} onClick={() => { if (activeTool === id) setLibraryOpen((isOpen) => !isOpen); else { setActiveTool(id); setLibraryOpen(true); } }}><Icon size={20} /><span>{label}</span></button>)}</aside>
         {libraryOpen && <aside className="element-library"><div className="library-title"><h2>{activeTool === 'devices' ? 'Devices' : activeTool[0].toUpperCase() + activeTool.slice(1)}</h2><button aria-label="Close library" onClick={() => setLibraryOpen(false)}>x</button></div><div className="library-search"><Search size={16} /><input value={deviceSearch} onChange={(event) => setDeviceSearch(event.target.value)} placeholder={activeTool === 'devices' ? 'Search devices...' : `Search ${activeTool}...`} /><SlidersHorizontal size={16} /></div>{activeTool === 'devices' ? <div className="device-groups">{[{ title: 'Network', types: ['switch', 'router', 'firewall', 'patch_panel'] }, { title: 'Compute & Storage', types: ['server', 'nas', 'storage', 'nvr'] }, { title: 'Power', types: ['ups', 'pdu'] }, { title: 'Other', types: ['appliance', 'generic', 'other', 'cable_manager'] }].map(({ title, types }) => <section key={title}><h3>{title}</h3><div>{types.filter((type) => defaultLabel(type).toLowerCase().includes(deviceSearch.toLowerCase())).map((type) => <button key={type} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-device-type', type); }} onClick={() => addDevice(type)}><span className={`device-art device-art--${type}`} /><b>{defaultLabel(type)}</b></button>)}</div></section>)}</div> : activeTool === 'wiring' ? <ToolList title="Network" kind="wire" items={[['Ethernet', Cable], ['Fibre', LineChart], ['Patch Cable', Cable], ['Power Cable', Cable], ['Connection Line', ArrowRight]]} onAdd={(name) => addCanvasElement('wire', name)} /> : activeTool === 'text' ? <ToolList title="Add text" kind="text" items={[['Heading', Type], ['Subheading', Type], ['Label', Type], ['Note', FileText]]} onAdd={(name) => addCanvasElement('text', name, { value: name === 'Heading' ? 'Rack heading' : name === 'Note' ? 'Add a note' : name })} /> : activeTool === 'shapes' ? <ToolList title="Shapes" kind="shape" items={[['Rectangle', Square], ['Circle', Circle], ['Line', LineChart], ['Arrow', ArrowRight]]} onAdd={(name) => addCanvasElement('shape', name)} /> : activeTool === 'images' ? <label className="image-upload"><Upload size={24} /><b>Upload image</b><span>Drag an image here or choose an image</span><input type="file" accept="image/*" onChange={addImage} /></label> : activeTool === 'tools' ? <ToolList title="Tools" kind="annotation" items={[['Select', MousePointer2], ['Pen', PenTool], ['Highlighter', Highlighter], ['Eraser', Eraser], ['Measure', Wrench]]} onAdd={(name) => name === 'Eraser' ? setCanvasElements([]) : addCanvasElement('annotation', name)} /> : <div className="template-list">{['Standard Network Rack', 'Server Rack', 'Office Rack', 'Core Switch Rack', 'Small Cabinet'].map((name) => <button key={name} onClick={() => handleLoadSample(sampleData.racks)}><span className="template-art" /><b>{name}</b><small>Use layout</small></button>)}</div>}</aside>}
-        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} />{patchMedium ? ` ${patchSource === null ? `Select the ${patchMedium} source port.` : `Select the destination port for port ${patchSource.port}.`}` : ` ${viewSide === 'rear' ? 'Rear view. Drag devices between rack units.' : 'Double-click the rack header for rack properties, or a device to edit it.'}`}</div><div ref={canvasRackRef} className={`canvas-rack${viewSide === 'rear' ? ' canvas-rack--rear' : ''}`} style={{ '--canvas-zoom': canvasZoom }} onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type') || event.dataTransfer.types.includes('rack-canvas-element') || event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (event.dataTransfer.types.includes('rack-device-type')) setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const rawElement = event.dataTransfer.getData('rack-canvas-element'); const image = [...event.dataTransfer.files].find((file) => file.type.startsWith('image/')); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); else if (rawElement) { try { const { kind, label } = JSON.parse(rawElement); addCanvasElementAt(kind, label, event, kind === 'text' ? { value: label === 'Heading' ? 'Rack heading' : label === 'Note' ? 'Add a note' : label } : {}); } catch {} } else if (image) addDroppedImage(image, event); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={patchMedium ? undefined : setMovingItemIndex} onPatchDevice={patchMedium ? handlePatchDevice : undefined} patchSource={patchSource} onOpenProperties={setPropertiesItemIndex} onOpenRackProperties={() => setRackPropertiesOpen(true)} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && dropGuideStyle && <div className="rack-drop-guide" style={dropGuideStyle}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div><div className="canvas-viewport-controls"><div className="view-toggle" aria-label="Rack view"><button className={viewSide === 'front' ? 'active' : ''} onClick={() => setViewSide('front')}>Front</button><button className={viewSide === 'rear' ? 'active' : ''} onClick={() => setViewSide('rear')}>Rear</button></div><div className="zoom-control"><button title="Select zoom level" aria-label="Select zoom level" aria-expanded={zoomMenuOpen} onClick={() => setZoomMenuOpen((isOpen) => !isOpen)}>{Math.round(canvasZoom * 100)}% <ChevronDown size={14} /></button>{zoomMenuOpen && <div className="zoom-menu">{[50, 75, 100, 125, 150].map((percent) => <button key={percent} className={Math.round(canvasZoom * 100) === percent ? 'active' : ''} onClick={() => { setCanvasZoom(percent / 100); setZoomMenuOpen(false); }}>{percent}%</button>)}</div>}</div><button title="Zoom out" aria-label="Zoom out" onClick={() => setCanvasZoom((zoom) => Math.max(0.5, zoom - 0.1))}><ZoomOut size={16} /></button><button title="Zoom in" aria-label="Zoom in" onClick={() => setCanvasZoom((zoom) => Math.min(1.5, zoom + 0.1))}><ZoomIn size={16} /></button><button title="Fit rack to canvas" aria-label="Fit rack to canvas" onClick={() => setCanvasZoom(1)}><Maximize size={16} /></button></div></main>
+        <main className="rack-canvas"><div className="canvas-hint"><Eye size={15} />{patchMedium ? ` ${patchSource === null ? `Select the ${patchMedium} source port.` : `Select the destination port for port ${patchSource.port}.`}` : ` ${viewSide === 'rear' ? 'Rear view. Drag devices between rack units.' : 'Double-click the rack header for rack properties, or a device to edit it.'}`}</div><div ref={canvasRackRef} className={`canvas-rack${viewSide === 'rear' ? ' canvas-rack--rear' : ''}`} style={{ '--canvas-zoom': canvasZoom }} onPointerCancel={() => { setMovingItemIndex(null); setDropRU(null); }} onDragOver={(event) => { if (event.dataTransfer.types.includes('rack-device-type') || event.dataTransfer.types.includes('rack-canvas-element') || event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (event.dataTransfer.types.includes('rack-device-type')) setDropRU(getDropRU(event)); } }} onDragLeave={() => setDropRU(null)} onDrop={(event) => { event.preventDefault(); const type = event.dataTransfer.getData('rack-device-type'); const rawElement = event.dataTransfer.getData('rack-canvas-element'); const image = [...event.dataTransfer.files].find((file) => file.type.startsWith('image/')); const ru = getDropRU(event); if (type && ru) addDevice(type, ru); else if (rawElement) { try { const { kind, label } = JSON.parse(rawElement); addCanvasElementAt(kind, label, event, kind === 'text' ? { value: label === 'Heading' ? 'Rack heading' : label === 'Note' ? 'Add a note' : label } : {}); } catch {} } else if (image) addDroppedImage(image, event); setDropRU(null); }}>{activeRack ? <RackPreviewPanel rack={activeRack} onExportRef={captureFrameRef} onStartMoveItem={patchMedium ? undefined : setMovingItemIndex} onPatchDevice={patchMedium ? handlePatchDevice : undefined} patchSource={patchSource} onOpenProperties={setPropertiesItemIndex} onOpenRackProperties={() => setRackPropertiesOpen(true)} onContextMenuItem={patchMedium ? undefined : openDeviceContextMenu} /> : <button className="canvas-empty" onClick={handleAddRack}>Create your first rack</button>}{dropRU && dropGuideStyle && <div className="rack-drop-guide" style={dropGuideStyle}>U{dropRU}</div>}<div className="canvas-overlays">{canvasElements.map((element) => <CanvasElement key={element.id} element={element} onRemove={() => setCanvasElements((elements) => elements.filter(({ id }) => id !== element.id))} />)}</div></div><div className="canvas-viewport-controls"><div className="view-toggle" aria-label="Rack view"><button className={viewSide === 'front' ? 'active' : ''} onClick={() => setViewSide('front')}>Front</button><button className={viewSide === 'rear' ? 'active' : ''} onClick={() => setViewSide('rear')}>Rear</button></div><div className="zoom-control"><button title="Select zoom level" aria-label="Select zoom level" aria-expanded={zoomMenuOpen} onClick={() => setZoomMenuOpen((isOpen) => !isOpen)}>{Math.round(canvasZoom * 100)}% <ChevronDown size={14} /></button>{zoomMenuOpen && <div className="zoom-menu">{[50, 75, 100, 125, 150].map((percent) => <button key={percent} className={Math.round(canvasZoom * 100) === percent ? 'active' : ''} onClick={() => { setCanvasZoom(percent / 100); setZoomMenuOpen(false); }}>{percent}%</button>)}</div>}</div><button title="Zoom out" aria-label="Zoom out" onClick={() => setCanvasZoom((zoom) => Math.max(0.5, zoom - 0.1))}><ZoomOut size={16} /></button><button title="Zoom in" aria-label="Zoom in" onClick={() => setCanvasZoom((zoom) => Math.min(1.5, zoom + 0.1))}><ZoomIn size={16} /></button><button title="Fit rack to canvas" aria-label="Fit rack to canvas" onClick={() => setCanvasZoom(1)}><Maximize size={16} /></button></div></main>
       </div>
-      {propertiesItemIndex !== null && <DevicePropertiesModal key={`${activeIndex}-${propertiesItemIndex}`} item={activeRack?.items[propertiesItemIndex]} user={session?.user} onSave={saveDeviceProperties} onClose={() => setPropertiesItemIndex(null)} />}
+      {propertiesItemIndex !== null && <DevicePropertiesModal key={`${activeIndex}-${propertiesItemIndex}`} item={activeRack?.items[propertiesItemIndex]} user={session?.user} onSave={saveDeviceProperties} onClose={() => setPropertiesItemIndex(null)} onDelete={() => removeDevice(propertiesItemIndex)} />}
+      {contextMenu && (
+        <div
+          className="rack-item-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button type="button" onClick={() => { setPropertiesItemIndex(contextMenu.itemIndex); setContextMenu(null); }}><Pencil size={14} />Edit</button>
+          <button type="button" onClick={() => { duplicateDevice(contextMenu.itemIndex); setContextMenu(null); }}><Copy size={14} />Duplicate</button>
+          <button type="button" className="rack-item-context-menu-delete" onClick={() => { if (window.confirm('Delete this device from the rack? This cannot be undone.')) removeDevice(contextMenu.itemIndex); setContextMenu(null); }}><Trash2 size={14} />Delete</button>
+        </div>
+      )}
       <RackPropertiesModal rack={rackPropertiesOpen ? activeRack : null} onSave={saveRackProperties} onClose={() => setRackPropertiesOpen(false)} />
 
       {/* ── Hidden off-screen container: diagram mode ZIP export ── */}

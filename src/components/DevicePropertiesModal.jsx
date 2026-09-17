@@ -156,7 +156,7 @@ function getBatteryAgeStatus(installedDate) {
   return { level: "red", label: `${months} months old` };
 }
 
-export default function DevicePropertiesModal({ item, user, onSave, onClose }) {
+export default function DevicePropertiesModal({ item, user, onSave, onClose, onDelete }) {
   const withHeight = (device) => {
     if (!device) return {};
     const points = connectionPointsForItem(device);
@@ -792,6 +792,18 @@ export default function DevicePropertiesModal({ item, user, onSave, onClose }) {
           <button type="button" onClick={onClose}>
             Cancel
           </button>
+          {onDelete && (
+            <button
+              type="button"
+              className="device-properties-delete"
+              onClick={() => {
+                if (window.confirm("Delete this device from the rack? This cannot be undone.")) onDelete();
+              }}
+            >
+              <Trash2 size={15} />
+              Delete device
+            </button>
+          )}
           <button type="submit">Save device</button>
         </footer>
       </form>

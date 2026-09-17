@@ -3,7 +3,7 @@ import { Cable, EyeOff } from 'lucide-react';
 import RackFrame from './RackFrame';
 import { RackElevation } from './RackElevation';
 
-export default function RackPreviewPanel({ rack, viewSide = rack?.viewSide || 'front', onExportRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties }) {
+export default function RackPreviewPanel({ rack, viewSide = rack?.viewSide || 'front', onExportRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties, onContextMenuItem }) {
   const frameRef = useRef(null);
   const [diagramMode, setDiagramMode] = useState(true); // true = technical elevation
   const [showDataWiring, setShowDataWiring] = useState(true);
@@ -89,7 +89,7 @@ export default function RackPreviewPanel({ rack, viewSide = rack?.viewSide || 'f
       )}
 
       {diagramMode || onPatchDevice
-        ? <RackElevation rack={rack} viewSide={viewSide} showDataWiring={showDataWiring} innerRef={frameRef} onStartMoveItem={onStartMoveItem} onPatchDevice={onPatchDevice} patchSource={patchSource} onOpenProperties={onOpenProperties} onOpenRackProperties={onOpenRackProperties} />
+        ? <RackElevation rack={rack} viewSide={viewSide} showDataWiring={showDataWiring} innerRef={frameRef} onStartMoveItem={onStartMoveItem} onPatchDevice={onPatchDevice} patchSource={patchSource} onOpenProperties={onOpenProperties} onOpenRackProperties={onOpenRackProperties} onContextMenuItem={onContextMenuItem} />
         : <RackFrame rack={rack} innerRef={frameRef} />
       }
     </div>

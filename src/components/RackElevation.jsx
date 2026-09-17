@@ -152,7 +152,7 @@ function portAnchor(item, layout, portId, viewSide) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export function RackElevation({ rack, viewSide = 'front', showDataWiring = true, innerRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties }) {
+export function RackElevation({ rack, viewSide = 'front', showDataWiring = true, innerRef, onStartMoveItem, onPatchDevice, patchSource, onOpenProperties, onOpenRackProperties, onContextMenuItem }) {
   const lastPointerDown = useRef({ itemIndex: null, time: 0 });
   if (!rack) return null;
 
@@ -209,6 +209,10 @@ export function RackElevation({ rack, viewSide = 'front', showDataWiring = true,
           }}
           onDoubleClick={() => {
             onOpenProperties?.(itemIndex);
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenuItem?.(itemIndex, event);
           }}
         >
           {renderFace(row.item, row.height, DEVICE_X, currentY + 1, DEVICE_W, rowH - 2, {
@@ -275,6 +279,10 @@ export function RackElevation({ rack, viewSide = 'front', showDataWiring = true,
             if (onPatchDevice) event.preventDefault();
           }}
           onDoubleClick={() => onOpenProperties?.(itemIndex)}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenuItem?.(itemIndex, event);
+          }}
         >
           <VerticalPDUFace
             {...item}
