@@ -697,7 +697,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         connection_profile_version: item.connectionProfileVersion || null,
         connection_points_customized: Boolean(item.connectionPointsCustomized),
         ru_height: Math.abs(item.startRU - item.endRU) + 1,
-        starting_ru: item.endRU,
+        starting_ru: item.startRU,
         created_by: session.user.id,
         builder_device_key: builderDeviceKey,
       }));
