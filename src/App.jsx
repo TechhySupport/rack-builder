@@ -711,7 +711,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         .select('id')
         .single();
       if (rackError || !savedRack) {
-        setWorkspaceSaveMessage(rackError?.message || 'Unable to save this rack.');
+        const errorMsg = rackError?.message || 'Unknown error';
+        setWorkspaceSaveMessage(`Rack save failed: ${rack.rackName || 'Rack'} - ${errorMsg}`);
         setSavingWorkspace(false);
         return;
       }
@@ -743,7 +744,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           .upsert(deviceRows, { onConflict: 'organisation_id,builder_device_key' })
           .select('id, builder_device_key');
         if (deviceError) {
-          setWorkspaceSaveMessage(deviceError.message);
+          setWorkspaceSaveMessage(`Device save failed: ${deviceError.message || 'Unknown error'}`);
           setSavingWorkspace(false);
           return;
         }
@@ -783,7 +784,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         if (connectionPointRows.length > 0) {
           const { error: connectionPointsError } = await supabase.from('device_connection_points').upsert(connectionPointRows, { onConflict: 'device_id,client_point_id' });
           if (connectionPointsError) {
-            setWorkspaceSaveMessage(connectionPointsError.message);
+            setWorkspaceSaveMessage(`Connection points save failed: ${connectionPointsError.message || 'Unknown error'}`);
             setSavingWorkspace(false);
             return;
           }
