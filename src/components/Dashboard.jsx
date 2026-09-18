@@ -205,9 +205,11 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
   async function cancelInvitation(invitation) {
     if (!supabase) return;
     if (!confirm(`Cancel the invitation to ${invitation.invited_email}?`)) return;
-    const { error: cancelError } = await supabase.from('organisation_invitations').update({ status: 'cancelled' }).eq('id', invitation.id);
-    if (cancelError) {
-      setError(cancelError.message);
+    const result = await supabase.functions.invoke('cancel-organisation-invitation', {
+      body: { invitationId: invitation.id },
+    });
+    if (result.error) {
+      setError(result.error.message || 'Unable to cancel the invitation.');
       return;
     }
     loadDashboard();
