@@ -3,6 +3,7 @@ import App from './App.jsx';
 import LandingPage from './components/LandingPage.jsx';
 import ComingSoonLanding from './components/ComingSoonLanding.jsx';
 import AuthPage from './components/AuthPage.jsx';
+import AcceptInvitePage from './components/AcceptInvitePage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import SiteView from './components/SiteView.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
@@ -13,6 +14,7 @@ const BUILDER_PATH = '/b/builder';
 const DASHBOARD_PATH = '/dashboard';
 const SETTINGS_PATH = '/settings';
 const SITE_PATH = '/site';
+const ACCEPT_INVITE_PATH = '/accept-invite';
 const AUTH_PATHS = {
   signin: '/a/login',
   signup: '/a/signup',
@@ -24,6 +26,7 @@ function viewFromPathname() {
   if (window.location.pathname === DASHBOARD_PATH) return 'dashboard';
   if (window.location.pathname === SETTINGS_PATH) return 'settings';
   if (window.location.pathname === SITE_PATH) return 'site';
+  if (window.location.pathname === ACCEPT_INVITE_PATH) return 'accept-invite';
   if (Object.values(AUTH_PATHS).includes(window.location.pathname)) return 'auth';
   return 'landing';
 }
@@ -155,6 +158,14 @@ export default function Root() {
     return () => subscription.unsubscribe();
   }, []);
 
+  function handleInviteVerified() {
+    const url = new URL(window.location.href);
+    url.pathname = '/';
+    url.search = '?invite=1';
+    window.history.replaceState({}, '', url);
+    setInvitationSetup(true);
+  }
+
   function completeCredentialSetup() {
     const url = new URL(window.location.href);
     url.searchParams.delete('recovery');
@@ -165,6 +176,7 @@ export default function Root() {
   }
 
   if (checkingSession) return <div className="session-loading">Loading Racked View</div>;
+  if (view === 'accept-invite' && !invitationSetup) return <AcceptInvitePage onVerified={handleInviteVerified} onBack={() => setView('landing')} />;
   if (passwordRecovery || invitationSetup) return <AuthPage recovery={passwordRecovery} invitation={invitationSetup} onBack={() => setView('landing')} onRecoveryComplete={completeCredentialSetup} />;
   if (session && authenticatedView === 'builder') return <App session={session} onDashboard={openDashboard} onSettings={openSettings} onSignOut={signOut} />;
   if (session && authenticatedView === 'settings') return <SettingsPage session={session} onDashboard={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
