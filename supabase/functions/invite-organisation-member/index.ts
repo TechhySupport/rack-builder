@@ -42,6 +42,8 @@ Deno.serve(async (request) => {
   const organisationId = body?.organisationId;
   const invitedEmail = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   const invitedRole = body?.role;
+  const invitedName = typeof body?.name === 'string' ? body.name.trim().slice(0, 200) : '';
+  const siteIds = Array.isArray(body?.siteIds) ? body.siteIds.filter((id: unknown) => typeof id === 'string') : [];
   const redirectTo = typeof body?.redirectTo === 'string' ? body.redirectTo : undefined;
   if (typeof organisationId !== 'string' || !/^\S+@\S+\.\S+$/.test(invitedEmail) || !allowedRoles.includes(invitedRole)) {
     return jsonResponse({ error: 'Enter a valid email address and member role.' }, 400);
@@ -67,6 +69,16 @@ Deno.serve(async (request) => {
     .maybeSingle();
   if (pendingInvitation) return jsonResponse({ error: 'A pending invitation already exists for this email.' }, 409);
 
+  let validSiteIds: string[] = [];
+  if (siteIds.length > 0) {
+    const { data: validSites } = await adminClient
+      .from('sites')
+      .select('id')
+      .eq('organisation_id', organisationId)
+      .in('id', siteIds);
+    validSiteIds = (validSites || []).map((site) => site.id);
+  }
+
   const invitationToken = crypto.randomUUID();
   const { data: invitation, error: invitationError } = await adminClient
     .from('organisation_invitations')
@@ -89,8 +101,8 @@ Deno.serve(async (request) => {
   }
   const acceptInviteRedirect = `${origin}/accept-invite?invite=1&org_token=${invitationToken}`;
 
-  const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(invitedEmail, {
-    data: { full_name: 'New user' },
+  const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(invitedEmail, {
+    data: { full_name: invitedName || 'New user' },
     redirectTo: acceptInviteRedirect,
   });
   if (inviteError) {
@@ -99,6 +111,17 @@ Deno.serve(async (request) => {
       return jsonResponse({ existingAccount: 'true' });
     }
     return jsonResponse({ error: inviteError.message }, 500);
+  }
+
+  if (validSiteIds.length > 0 && inviteData.user) {
+    await adminClient.from('member_site_permissions').insert(
+      validSiteIds.map((siteId) => ({
+        organisation_id: organisationId,
+        user_id: inviteData.user!.id,
+        site_id: siteId,
+        granted_by: user.id,
+      })),
+    );
   }
 
   return jsonResponse({ message: 'Invitation email sent.' });

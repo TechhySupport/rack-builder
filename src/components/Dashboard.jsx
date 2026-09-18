@@ -24,7 +24,9 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
   const [siteName, setSiteName] = useState('');
   const [siteAddress, setSiteAddress] = useState('');
   const [memberEmail, setMemberEmail] = useState('');
+  const [memberName, setMemberName] = useState('');
   const [memberRole, setMemberRole] = useState('viewer');
+  const [memberSiteIds, setMemberSiteIds] = useState([]);
   const [taskTitle, setTaskTitle] = useState('');
   const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [taskDeviceId, setTaskDeviceId] = useState('');
@@ -169,6 +171,18 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
     loadDashboard();
   }
 
+  async function grantSitePermissions(userId) {
+    if (!supabase || memberSiteIds.length === 0) return;
+    await supabase.from('member_site_permissions').insert(
+      memberSiteIds.map((siteId) => ({
+        organisation_id: activeOrganisation.id,
+        user_id: userId,
+        site_id: siteId,
+        granted_by: session.user.id,
+      })),
+    );
+  }
+
   async function addMember(event) {
     event.preventDefault();
     if (!memberEmail.trim() || !activeOrganisation || !supabase) return;
@@ -178,7 +192,9 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
       body: {
         organisationId: activeOrganisation.id,
         email: memberEmail.trim(),
+        name: memberName.trim(),
         role: memberRole,
+        siteIds: memberSiteIds,
         redirectTo: `${window.location.origin}?invite=1`,
       },
     });
@@ -188,7 +204,7 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
       return;
     }
     if (invitation.data?.existingAccount === 'true') {
-      const { error: memberError } = await supabase.rpc('add_organisation_member', {
+      const { data: newMember, error: memberError } = await supabase.rpc('add_organisation_member', {
         target_organisation_id: activeOrganisation.id,
         invited_email: memberEmail.trim(),
         invited_role: memberRole,
@@ -198,9 +214,12 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
         setSaving(false);
         return;
       }
+      await grantSitePermissions(newMember.user_id);
     }
     setMemberEmail('');
+    setMemberName('');
     setMemberRole('viewer');
+    setMemberSiteIds([]);
     setModal(null);
     setSaving(false);
     loadDashboard();
@@ -292,6 +311,11 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
   const racksBySite = racks.reduce((result, rack) => ({ ...result, [rack.site_id]: (result[rack.site_id] || 0) + 1 }), {});
   const documentedRacks = racks.filter((rack) => rack.doc_status === 'current').length;
   const workspaceMembers = members.filter((member) => member.organisation_id === activeOrganisation?.id);
+  const workspaceSites = sites.filter((site) => site.organisation_id === activeOrganisation?.id);
+
+  function toggleMemberSite(siteId) {
+    setMemberSiteIds((current) => current.includes(siteId) ? current.filter((id) => id !== siteId) : [...current, siteId]);
+  }
   const workspaceInvitations = invitations.filter((invitation) => invitation.organisation_id === activeOrganisation?.id);
   const workspaceDevices = devices.filter((device) => device.organisation_id === activeOrganisation?.id);
   const workspaceTasks = tasks.filter((task) => task.organisation_id === activeOrganisation?.id);
@@ -391,7 +415,22 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettin
         </>}
       </div>
 
-      {modal && <div className="dashboard-modal-backdrop" role="presentation"><section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button className="modal-close" onClick={() => setModal(null)} aria-label="Close"><X size={19} /></button><p className="dashboard-kicker">{modal === 'workspace' ? 'Welcome to Racked View' : activeOrganisation?.name}</p><h2 id="modal-title">{modal === 'workspace' ? 'Create your workspace' : modal === 'member' ? 'Invite a workspace member' : modal === 'task' ? 'Create a task' : 'Add a site'}</h2><form onSubmit={modal === 'workspace' ? createWorkspace : modal === 'member' ? addMember : modal === 'task' ? createTask : createSite}>{modal === 'workspace' ? <label>Workspace name<input autoFocus value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} placeholder="e.g. Northstar IT" required /></label> : modal === 'member' ? <><label>Email address<input type="email" autoFocus value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="name@company.com" required /></label><label>Role<select value={memberRole} onChange={(event) => setMemberRole(event.target.value)}><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></label><p className="member-help">They will receive an email to create their account and join this workspace.</p></> : modal === 'task' ? <><label>Task<input autoFocus value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="e.g. Replace UPS" required /></label><label>Assign to<select value={taskAssigneeId} onChange={(event) => setTaskAssigneeId(event.target.value)} required><option value="" disabled>Select a member</option>{workspaceMembers.filter((member) => member.status === 'active').map((member) => <option key={member.user_id} value={member.user_id}>{member.profiles?.full_name || 'Racked View member'}</option>)}</select></label><label>Device<select value={taskDeviceId} onChange={(event) => { if (event.target.value === 'add-device') { setModal(null); onOpenBuilder(); return; } setTaskDeviceId(event.target.value); }} required><option value="" disabled>Select a device</option>{workspaceDevices.map((device) => <option key={device.id} value={device.id}>{device.name}{device.starting_ru ? ` · RU ${device.starting_ru}` : ''}</option>)}<option value="add-device">Add a device in Rack Builder</option></select></label>{workspaceDevices.length === 0 && <p className="member-help">Add the device in Rack Builder, then select Save to workspace.</p>}</> : <><label>Site name<input autoFocus value={siteName} onChange={(event) => setSiteName(event.target.value)} placeholder="e.g. Headquarters" required /></label><label>Address <span>optional</span><AddressAutocomplete value={siteAddress} onChange={setSiteAddress} /></label></>}<button className="dashboard-primary modal-submit" disabled={saving || (modal === 'task' && workspaceDevices.length === 0)}>{saving ? 'Saving...' : modal === 'workspace' ? 'Create workspace' : modal === 'member' ? 'Send invitation' : modal === 'task' ? 'Create task' : 'Add site'}</button></form></section></div>}
+      {modal && <div className="dashboard-modal-backdrop" role="presentation"><section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button className="modal-close" onClick={() => setModal(null)} aria-label="Close"><X size={19} /></button><p className="dashboard-kicker">{modal === 'workspace' ? 'Welcome to Racked View' : activeOrganisation?.name}</p><h2 id="modal-title">{modal === 'workspace' ? 'Create your workspace' : modal === 'member' ? 'Invite a workspace member' : modal === 'task' ? 'Create a task' : 'Add a site'}</h2><form onSubmit={modal === 'workspace' ? createWorkspace : modal === 'member' ? addMember : modal === 'task' ? createTask : createSite}>{modal === 'workspace' ? <label>Workspace name<input autoFocus value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} placeholder="e.g. Northstar IT" required /></label> : modal === 'member' ? <>
+  <label>Email address<input type="email" autoFocus value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="name@company.com" required /></label>
+  <label>Name <span>optional</span><input type="text" value={memberName} onChange={(event) => setMemberName(event.target.value)} placeholder="e.g. Jamie Smith" /></label>
+  <label>Role<select value={memberRole} onChange={(event) => setMemberRole(event.target.value)}><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></label>
+  {workspaceSites.length > 0 && <label>Sites <span>optional — leave empty for access to all sites</span>
+    <div className="member-site-checklist">
+      {workspaceSites.map((site) => (
+        <label key={site.id} className="member-site-checkbox">
+          <input type="checkbox" checked={memberSiteIds.includes(site.id)} onChange={() => toggleMemberSite(site.id)} />
+          {site.name}
+        </label>
+      ))}
+    </div>
+  </label>}
+  <p className="member-help">They will receive an email to create their account and join this workspace.{memberSiteIds.length > 0 ? ' They will only be able to view or edit the selected sites.' : ''}</p>
+</> : modal === 'task' ? <><label>Task<input autoFocus value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="e.g. Replace UPS" required /></label><label>Assign to<select value={taskAssigneeId} onChange={(event) => setTaskAssigneeId(event.target.value)} required><option value="" disabled>Select a member</option>{workspaceMembers.filter((member) => member.status === 'active').map((member) => <option key={member.user_id} value={member.user_id}>{member.profiles?.full_name || 'Racked View member'}</option>)}</select></label><label>Device<select value={taskDeviceId} onChange={(event) => { if (event.target.value === 'add-device') { setModal(null); onOpenBuilder(); return; } setTaskDeviceId(event.target.value); }} required><option value="" disabled>Select a device</option>{workspaceDevices.map((device) => <option key={device.id} value={device.id}>{device.name}{device.starting_ru ? ` · RU ${device.starting_ru}` : ''}</option>)}<option value="add-device">Add a device in Rack Builder</option></select></label>{workspaceDevices.length === 0 && <p className="member-help">Add the device in Rack Builder, then select Save to workspace.</p>}</> : <><label>Site name<input autoFocus value={siteName} onChange={(event) => setSiteName(event.target.value)} placeholder="e.g. Headquarters" required /></label><label>Address <span>optional</span><AddressAutocomplete value={siteAddress} onChange={setSiteAddress} /></label></>}<button className="dashboard-primary modal-submit" disabled={saving || (modal === 'task' && workspaceDevices.length === 0)}>{saving ? 'Saving...' : modal === 'workspace' ? 'Create workspace' : modal === 'member' ? 'Send invitation' : modal === 'task' ? 'Create task' : 'Add site'}</button></form></section></div>}
     </main>
   );
 }
