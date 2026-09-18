@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, MapPin, Plus } from 'lucide-react';
+import { ArrowLeft, MapPin, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
 import '../dashboard.css';
 
@@ -103,6 +103,25 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function deleteSite() {
+    if (!supabase || !site) return;
+    const confirmMessage = racks.length > 0
+      ? `Delete "${site.name}"? This will also permanently delete ${racks.length} rack${racks.length === 1 ? '' : 's'} at this site. This cannot be undone.`
+      : `Delete "${site.name}"? This cannot be undone.`;
+    if (!confirm(confirmMessage)) return;
+
+    setSaving(true);
+    setSaveMessage('');
+    const { error: deleteError } = await supabase.from('sites').delete().eq('id', siteId);
+    setSaving(false);
+
+    if (deleteError) {
+      setSaveMessage(`Error deleting site: ${deleteError.code || 'unknown'} - ${deleteError.message}`);
+      return;
+    }
+    onBack();
   }
 
   if (loading) {
@@ -211,7 +230,7 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
               />
             </label>
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'space-between' }}>
               <button
                 onClick={() => {
                   console.log('[Button clicked] saveSiteProperties');
@@ -231,6 +250,27 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
                 }}
               >
                 {saving ? 'Saving...' : 'Save Site'}
+              </button>
+              <button
+                onClick={deleteSite}
+                disabled={saving}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 16px',
+                  backgroundColor: 'transparent',
+                  color: '#dc2626',
+                  border: '1px solid #dc2626',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  opacity: saving ? 0.6 : 1
+                }}
+              >
+                <Trash2 size={15} />
+                Delete Site
               </button>
             </div>
           </div>
