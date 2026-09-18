@@ -184,7 +184,7 @@ export default function Root() {
     const siteId = new URLSearchParams(window.location.search).get('siteId');
     return <SiteView session={session} siteId={siteId} onBack={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
   }
-  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSignOut={signOut} />;
+  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSettings={openSettings} onSignOut={signOut} />;
   if (view === 'auth') return <AuthPage initialMode={authMode} onModeChange={changeAuthMode} onBack={leaveAuth} onAuthenticated={completeAuthentication} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
   if (!previewAccess) return <ComingSoonLanding onUnlock={() => setPreviewAccess(true)} />;

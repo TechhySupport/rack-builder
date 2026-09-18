@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, ChevronRight, ClipboardList, MapPin, Network, Plus, RotateCw, Server, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Building2, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, MapPin, Network, Plus, RotateCw, Server, Settings, LogOut, Trash2, UserPlus, Users, X } from 'lucide-react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import { supabase } from '../lib/supabase.js';
 import '../dashboard.css';
@@ -9,7 +9,7 @@ function formatUpdatedAt(value) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value));
 }
 
-export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOut }) {
+export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSettings, onSignOut }) {
   const [organisations, setOrganisations] = useState([]);
   const [sites, setSites] = useState([]);
   const [racks, setRacks] = useState([]);
@@ -29,9 +29,24 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
   const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [taskDeviceId, setTaskDeviceId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
 
   const activeOrganisation = organisations[0] || null;
   const displayName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'there';
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    function closeAccountMenu(event) {
+      if (event.key === 'Escape' || !accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false);
+    }
+    document.addEventListener('pointerdown', closeAccountMenu);
+    document.addEventListener('keydown', closeAccountMenu);
+    return () => {
+      document.removeEventListener('pointerdown', closeAccountMenu);
+      document.removeEventListener('keydown', closeAccountMenu);
+    };
+  }, [accountMenuOpen]);
 
   async function loadDashboard() {
     if (!supabase) return;
@@ -292,9 +307,19 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
           <span>Racked View</span>
         </button>
         <div className="dashboard-header-actions">
-          <span className="dashboard-user">{session.user.email}</span>
           {canManageMembers && <button className="icon-button" onClick={() => setModal('member')} aria-label="Manage members" title="Manage members"><Users size={18} /></button>}
-          <button className="dashboard-signout" onClick={onSignOut}>Sign out</button>
+          <div className="dashboard-account" ref={accountMenuRef}>
+            <button className="dashboard-user dashboard-user--button" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((isOpen) => !isOpen)}>
+              {session.user.email}
+              <ChevronDown size={14} />
+            </button>
+            {accountMenuOpen && (
+              <div className="dashboard-account-menu" role="menu">
+                <button role="menuitem" onClick={() => { setAccountMenuOpen(false); onSettings?.(); }}><Settings size={16} />Settings</button>
+                <button role="menuitem" onClick={() => { setAccountMenuOpen(false); onSignOut?.(); }}><LogOut size={16} />Sign out</button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
