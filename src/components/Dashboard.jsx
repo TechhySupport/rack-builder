@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, ChevronRight, ClipboardList, MapPin, Network, Plus, Server, UserPlus, Users, X } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronRight, ClipboardList, MapPin, Network, Plus, RotateCw, Server, Trash2, UserPlus, Users, X } from 'lucide-react';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import { supabase } from '../lib/supabase.js';
 import '../dashboard.css';
@@ -14,6 +14,7 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
   const [sites, setSites] = useState([]);
   const [racks, setRacks] = useState([]);
   const [members, setMembers] = useState([]);
+  const [invitations, setInvitations] = useState([]);
   const [devices, setDevices] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,10 +72,11 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
       return;
     }
 
-    const [siteResponse, rackResponse, memberResponse, deviceResponse, taskResponse] = await Promise.all([
+    const [siteResponse, rackResponse, memberResponse, invitationResponse, deviceResponse, taskResponse] = await Promise.all([
       supabase.from('sites').select('id, organisation_id, name, address, updated_at').in('organisation_id', organisationIds).order('name'),
       supabase.from('racks').select('id, organisation_id, site_id, name, identifier, ru_capacity, doc_status, updated_at').in('organisation_id', organisationIds).order('updated_at', { ascending: false }),
       supabase.from('organisation_members').select('id, organisation_id, user_id, role, status, profiles!organisation_members_user_id_fkey(full_name)').in('organisation_id', organisationIds).order('joined_at'),
+      supabase.from('organisation_invitations').select('id, organisation_id, invited_email, invited_role, status, created_at').in('organisation_id', organisationIds).eq('status', 'pending').order('created_at', { ascending: false }),
       supabase.from('devices').select('id, organisation_id, rack_id, name, device_type, starting_ru').in('organisation_id', organisationIds).order('name'),
       supabase.from('tasks').select('id, organisation_id, device_id, assignee_id, title, status, created_at').in('organisation_id', organisationIds).order('created_at', { ascending: false }),
     ]);
@@ -86,6 +88,7 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
     setSites(siteResponse.data || []);
     setRacks(rackResponse.data || []);
     setMembers(memberResponse.data || []);
+    setInvitations(invitationResponse.data || []);
     setDevices(deviceResponse.data || []);
     setTasks(taskResponse.data || []);
     setLoading(false);
@@ -188,6 +191,49 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
     loadDashboard();
   }
 
+  async function removeMember(member) {
+    if (!supabase) return;
+    if (!confirm(`Remove ${member.profiles?.full_name || 'this member'} from the workspace?`)) return;
+    const { error: removeError } = await supabase.from('organisation_members').delete().eq('id', member.id);
+    if (removeError) {
+      setError(removeError.message);
+      return;
+    }
+    loadDashboard();
+  }
+
+  async function cancelInvitation(invitation) {
+    if (!supabase) return;
+    if (!confirm(`Cancel the invitation to ${invitation.invited_email}?`)) return;
+    const { error: cancelError } = await supabase.from('organisation_invitations').update({ status: 'cancelled' }).eq('id', invitation.id);
+    if (cancelError) {
+      setError(cancelError.message);
+      return;
+    }
+    loadDashboard();
+  }
+
+  async function resendInvitation(invitation) {
+    if (!supabase) return;
+    setSaving(true);
+    setError('');
+    await supabase.from('organisation_invitations').update({ status: 'cancelled' }).eq('id', invitation.id);
+    const result = await supabase.functions.invoke('invite-organisation-member', {
+      body: {
+        organisationId: invitation.organisation_id,
+        email: invitation.invited_email,
+        role: invitation.invited_role,
+        redirectTo: `${window.location.origin}?invite=1`,
+      },
+    });
+    setSaving(false);
+    if (result.error) {
+      setError(result.error.message || 'Unable to resend the invitation.');
+      return;
+    }
+    loadDashboard();
+  }
+
   async function createTask(event) {
     event.preventDefault();
     if (!taskTitle.trim() || !taskAssigneeId || !taskDeviceId || !activeOrganisation || !supabase) return;
@@ -216,6 +262,7 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
   const racksBySite = racks.reduce((result, rack) => ({ ...result, [rack.site_id]: (result[rack.site_id] || 0) + 1 }), {});
   const documentedRacks = racks.filter((rack) => rack.doc_status === 'current').length;
   const workspaceMembers = members.filter((member) => member.organisation_id === activeOrganisation?.id);
+  const workspaceInvitations = invitations.filter((invitation) => invitation.organisation_id === activeOrganisation?.id);
   const workspaceDevices = devices.filter((device) => device.organisation_id === activeOrganisation?.id);
   const workspaceTasks = tasks.filter((task) => task.organisation_id === activeOrganisation?.id);
   const currentMembership = workspaceMembers.find((member) => member.user_id === session.user.id);
@@ -262,7 +309,25 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
 
           <section className="dashboard-section">
             <div className="section-heading"><div><p className="dashboard-kicker">Workspace access</p><h2>Members</h2></div>{canManageMembers && <button className="dashboard-text-action" onClick={() => setModal('member')}>Add member <UserPlus size={15} /></button>}</div>
-            <div className="member-list">{workspaceMembers.map((member) => <article className="member-row" key={member.id}><span className="member-initial">{(member.profiles?.full_name || 'U').slice(0, 1).toUpperCase()}</span><span><strong>{member.profiles?.full_name || 'Racked View member'}</strong><small>{member.user_id === session.user.id ? 'You' : 'Workspace member'}</small></span><span className="member-role">{member.role}</span></article>)}</div>
+            <div className="member-list">
+              {workspaceMembers.map((member) => <article className="member-row" key={member.id}>
+                <span className="member-initial">{(member.profiles?.full_name || 'U').slice(0, 1).toUpperCase()}</span>
+                <span><strong>{member.profiles?.full_name || 'Racked View member'}</strong><small>{member.user_id === session.user.id ? 'You' : 'Workspace member'}</small></span>
+                <span className="member-status member-status--joined" title="Signed in"><CheckCircle2 size={16} /></span>
+                <span className="member-role">{member.role}</span>
+                {canManageMembers && member.user_id !== session.user.id && (
+                  <button type="button" className="member-action member-action--danger" title="Remove member" aria-label={`Remove ${member.profiles?.full_name || 'member'}`} onClick={() => removeMember(member)}><Trash2 size={15} /></button>
+                )}
+              </article>)}
+              {canManageMembers && workspaceInvitations.map((invitation) => <article className="member-row member-row--pending" key={invitation.id}>
+                <span className="member-initial">{invitation.invited_email.slice(0, 1).toUpperCase()}</span>
+                <span><strong>{invitation.invited_email}</strong><small>Pending invite</small></span>
+                <span className="member-status member-status--pending" title="Not signed in yet">Pending</span>
+                <span className="member-role">{invitation.invited_role}</span>
+                <button type="button" className="member-action" title="Resend invitation" aria-label={`Resend invitation to ${invitation.invited_email}`} onClick={() => resendInvitation(invitation)} disabled={saving}><RotateCw size={15} /></button>
+                <button type="button" className="member-action member-action--danger" title="Cancel invitation" aria-label={`Cancel invitation to ${invitation.invited_email}`} onClick={() => cancelInvitation(invitation)}><Trash2 size={15} /></button>
+              </article>)}
+            </div>
           </section>
 
           <section className="dashboard-section">
