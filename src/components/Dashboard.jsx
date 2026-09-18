@@ -228,11 +228,24 @@ export default function Dashboard({ session, onOpenBuilder, onOpenSite, onSignOu
         redirectTo: `${window.location.origin}?invite=1`,
       },
     });
-    setSaving(false);
     if (result.error) {
       setError(result.error.message || 'Unable to resend the invitation.');
+      setSaving(false);
       return;
     }
+    if (result.data?.existingAccount === 'true') {
+      const { error: memberError } = await supabase.rpc('add_organisation_member', {
+        target_organisation_id: invitation.organisation_id,
+        invited_email: invitation.invited_email,
+        invited_role: invitation.invited_role,
+      });
+      if (memberError) {
+        setError(memberError.message);
+        setSaving(false);
+        return;
+      }
+    }
+    setSaving(false);
     loadDashboard();
   }
 

@@ -81,9 +81,17 @@ Deno.serve(async (request) => {
     .single();
   if (invitationError || !invitation) return jsonResponse({ error: invitationError?.message || 'Unable to create the invitation.' }, 500);
 
+  let origin = 'https://rackedview.com';
+  try {
+    if (redirectTo) origin = new URL(redirectTo).origin;
+  } catch {
+    // keep default origin
+  }
+  const acceptInviteRedirect = `${origin}/accept-invite?invite=1&org_token=${invitationToken}`;
+
   const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(invitedEmail, {
     data: { full_name: 'New user' },
-    redirectTo,
+    redirectTo: acceptInviteRedirect,
   });
   if (inviteError) {
     await adminClient.from('organisation_invitations').delete().eq('id', invitation.id);

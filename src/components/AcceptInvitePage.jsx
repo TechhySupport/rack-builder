@@ -9,6 +9,7 @@ export default function AcceptInvitePage({ onVerified, onBack }) {
   const params = new URLSearchParams(window.location.search);
   const tokenHash = params.get('token_hash');
   const type = params.get('type') || 'invite';
+  const orgToken = params.get('org_token');
 
   async function handleAccept() {
     if (!supabase) {
@@ -29,6 +30,16 @@ export default function AcceptInvitePage({ onVerified, onBack }) {
       setStatus('error');
       return;
     }
+
+    if (orgToken) {
+      const { error: joinError } = await supabase.rpc('accept_invitation', { raw_token: orgToken });
+      if (joinError) {
+        console.error('[AcceptInvitePage] accept_invitation failed:', joinError);
+        // Don't block account setup over this -- surface it, but let them continue.
+        setError(`Signed in, but joining the workspace failed: ${joinError.message}. Ask the workspace owner to add you manually.`);
+      }
+    }
+
     onVerified?.(data.session);
   }
 
