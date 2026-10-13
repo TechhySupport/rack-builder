@@ -161,7 +161,7 @@ export default function SitesPanel({
         ) : (
           <>
             {editable && organisationRacks.length > 0 && organisationSites.length > 1 && <p className="board-hint">Drag a rack onto another site to move it.</p>}
-            <div className="site-board">
+            <div className="sites-board">
               {organisationSites.map((site) => {
                 const siteRacks = organisationRacks.filter((rack) => rack.site_id === site.id);
                 const expanded = expandedSiteIds.has(site.id);
