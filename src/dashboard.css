@@ -49,7 +49,7 @@
 @media (max-width: 720px) { .dashboard-stats { grid-template-columns: repeat(2, 1fr); } }
 
 /* Neurons-style home: tall rounded tiles, one large card, tables */
-.dashboard-shell { --header-h: 70px; --maroon: #7b2d2d; --maroon-soft: #e9c7c7; }
+.dashboard-shell { --header-h: 70px; --maroon: #7b2d2d; --maroon-soft: #e9c7c7; flex: 0 0 auto; }
 .dashboard-header { position: sticky; top: 0; z-index: 30; backdrop-filter: blur(8px); }
 .dashboard-body { display: flex; align-items: flex-start; }
 .dashboard-main { flex: 1; min-width: 0; }
@@ -393,3 +393,42 @@
 	.settings-content { width: min(100% - 28px, 760px); padding-top: 30px; }
 	.settings-panel { padding: 20px; }
 }
+.settings-tabs { display: flex; gap: 4px; margin-top: 28px; border-bottom: 1px solid var(--line); }
+.settings-tabs button { position: relative; padding: 10px 16px; border: 0; color: var(--muted); background: transparent; font: 700 14px Manrope, sans-serif; cursor: pointer; }
+.settings-tabs button:hover { color: var(--ink); }
+.settings-tabs button.is-active { color: var(--forest); }
+.settings-tabs button.is-active::after { content: ''; position: absolute; right: 8px; bottom: -1px; left: 8px; height: 2px; background: var(--forest); }
+.payment-sections { display: grid; gap: 0; }
+.payment-sections .settings-panel-title { align-items: center; }
+.payment-sections .settings-panel-title > div:first-of-type { flex: 1; }
+.payment-interval { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; }
+.payment-interval button { padding: 6px 14px; border: 0; border-radius: 999px; color: var(--muted); background: transparent; font: 700 12px Manrope, sans-serif; cursor: pointer; }
+.payment-interval button.is-active { color: var(--panel); background: var(--forest); }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.plan-card { display: grid; align-content: start; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.plan-card.is-current { border-color: var(--forest); }
+.plan-card h3 { margin: 0; font-size: 15px; }
+.plan-price { display: flex; align-items: baseline; gap: 6px; margin: 0; }
+.plan-price strong { color: var(--forest); font-size: 24px; letter-spacing: 0; }
+.plan-price small, .plan-description { color: var(--muted); font-size: 12px; }
+.plan-description { margin: 0; line-height: 1.5; }
+.plan-card .payment-status { justify-self: start; }
+.payment-empty { margin: 0; color: var(--muted); font-size: 13px; }
+.payment-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.payment-row p { display: grid; gap: 2px; margin: 0; }
+.payment-row small { display: block; color: var(--muted); font-size: 12px; }
+.payment-status { display: inline-block; padding: 3px 9px; border-radius: 999px; color: var(--forest-dark); background: var(--mint); font: 700 11px Manrope, sans-serif; white-space: nowrap; }
+.payment-status--past_due, .payment-status--open, .payment-status--unpaid, .payment-status--incomplete { color: #b45309; background: #fef3c7; }
+.payment-status--canceled, .payment-status--void, .payment-status--draft, .payment-status--incomplete_expired, .payment-status--uncollectible { color: var(--muted); background: color-mix(in srgb, var(--ink) 8%, var(--panel)); }
+.payment-status--pending { color: #b45309; background: #fef3c7; }
+.payment-status--failed { color: var(--maroon); background: var(--maroon-soft); }
+.payment-status--refunded { color: var(--muted); background: color-mix(in srgb, var(--ink) 8%, var(--panel)); }
+.payment-failure { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.payment-table-wrap { overflow-x: auto; }
+.payment-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.payment-table th { padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font: 700 11px 'DM Mono', monospace; text-align: left; text-transform: uppercase; }
+.payment-table td { padding: 11px 10px; border-bottom: 1px solid var(--line); }
+.payment-table a { display: inline-flex; color: var(--forest); }
+.payment-sections .settings-panel + .settings-panel { margin-top: 20px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .payment-status--past_due, .payment-status--open, .payment-status--unpaid, .payment-status--incomplete, .payment-status--pending { color: #fbbf24; background: #3f2f0f; } }
