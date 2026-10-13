@@ -198,3 +198,4 @@ Members page now has Members and Groups tabs. A group is a named set of sites (f
 - Payment > Your plan now shows a display-only Free plan (1 user, 1 site, 3 racks, Rack Builder) when there is no active subscription. Not wired to limits or Stripe.
 - Free plan card also added first in the Payment > Plans grid (display only).
 - Settings > Transactions tab (`?tab=transactions`): lists Stripe charges (date, description, card, amount, status, receipt link) for the signed-in user's email via new edge function `billing-transactions` (deployed). Empty state shown until a payment exists.
+- Mobile preview gate: logo (5-tap trigger) now has touch-action: manipulation so iOS double-tap zoom does not swallow taps; password input is 16px (no iOS zoom) with autocapitalize/autocorrect off. Note: the hash check needs https (crypto.subtle is unavailable on plain http LAN addresses).

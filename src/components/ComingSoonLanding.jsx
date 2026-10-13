@@ -71,7 +71,7 @@ export default function ComingSoonLanding({ onUnlock }) {
 
       <footer className="coming-soon-footer"><span>RackedView</span><span>Infrastructure visibility, without the overhead.</span></footer>
 
-      {showAccess && <div className="preview-access-backdrop"><form className="preview-access" onSubmit={handleAccess}><button type="button" className="preview-close" onClick={() => setShowAccess(false)} aria-label="Close">x</button><LockKeyhole size={22} /><h2>Preview access</h2><p>Enter the access password to view the full site.</p><label htmlFor="preview-password">Password</label><input id="preview-password" type="password" autoFocus required value={password} onChange={(event) => { setPassword(event.target.value); setAccessError(''); }} />{accessError && <p className="preview-error">{accessError}</p>}<button type="submit">Open full website <ArrowRight size={16} /></button></form></div>}
+      {showAccess && <div className="preview-access-backdrop"><form className="preview-access" onSubmit={handleAccess}><button type="button" className="preview-close" onClick={() => setShowAccess(false)} aria-label="Close">x</button><LockKeyhole size={22} /><h2>Preview access</h2><p>Enter the access password to view the full site.</p><label htmlFor="preview-password">Password</label><input id="preview-password" type="password" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck="false" autoFocus required value={password} onChange={(event) => { setPassword(event.target.value); setAccessError(''); }} />{accessError && <p className="preview-error">{accessError}</p>}<button type="submit">Open full website <ArrowRight size={16} /></button></form></div>}
     </main>
   );
 }
