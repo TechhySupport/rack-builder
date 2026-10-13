@@ -43,7 +43,9 @@ Deno.serve(async (request) => {
   const invitedEmail = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
   const invitedRole = body?.role;
   const invitedName = typeof body?.name === 'string' ? body.name.trim().slice(0, 200) : '';
+  const jobTitle = typeof body?.jobTitle === 'string' ? body.jobTitle.trim().slice(0, 100) : '';
   const siteIds = Array.isArray(body?.siteIds) ? body.siteIds.filter((id: unknown) => typeof id === 'string') : [];
+  const groupIds = Array.isArray(body?.groupIds) ? body.groupIds.filter((id: unknown) => typeof id === 'string') : [];
   const redirectTo = typeof body?.redirectTo === 'string' ? body.redirectTo : undefined;
   if (typeof organisationId !== 'string' || !/^\S+@\S+\.\S+$/.test(invitedEmail) || !allowedRoles.includes(invitedRole)) {
     return jsonResponse({ error: 'Enter a valid email address and member role.' }, 400);
@@ -80,6 +82,15 @@ Deno.serve(async (request) => {
   }
 
   const invitationToken = crypto.randomUUID();
+  let validGroupIds: string[] = [];
+  if (groupIds.length > 0) {
+    const { data: validGroups } = await adminClient
+      .from('member_groups')
+      .select('id')
+      .eq('organisation_id', organisationId)
+      .in('id', groupIds);
+    validGroupIds = (validGroups || []).map((group) => group.id);
+  }
   const { data: invitation, error: invitationError } = await adminClient
     .from('organisation_invitations')
     .insert({
@@ -87,6 +98,8 @@ Deno.serve(async (request) => {
       invited_email: invitedEmail,
       invited_role: invitedRole,
       invited_by: user.id,
+      job_title: jobTitle || null,
+      group_ids: validGroupIds,
       token_hash: await hashToken(invitationToken),
     })
     .select('id')

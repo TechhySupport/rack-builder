@@ -41,6 +41,20 @@ function databaseDeviceType(type) {
   return 'custom';
 }
 
+// Make and model edited from the Devices page must survive the builder's next save.
+function makeModelFields(dev) {
+  return {
+    brand: dev.manufacturer || dev.custom_manufacturer || '',
+    customManufacturer: dev.custom_manufacturer || '',
+    switchBrandId: dev.switch_brand_id || null,
+    catalogBrandId: dev.device_catalog_brand_id || null,
+    model: dev.model || dev.custom_model || '',
+    customModel: dev.custom_model || '',
+    switchModelId: dev.switch_model_id || null,
+    catalogModelId: dev.device_catalog_model_id || null,
+  };
+}
+
 function ToolList({ title, items, onAdd, kind }) {
   return <section className="tool-list"><h3>{title}</h3>{items.map(([name, Icon]) => <button key={name} draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('rack-canvas-element', JSON.stringify({ kind, label: name })); }} onClick={() => onAdd(name)}><Icon size={18} /><span>{name}</span><b>+</b></button>)}</section>;
 }
@@ -152,7 +166,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       try {
         const { data: dbRack, error: rackError } = await supabase
           .from('racks')
-          .select('id, ru_capacity, name, identifier, doc_status')
+          .select('id, ru_capacity, name, identifier, doc_status, builder_rack_key')
           .eq('id', rackId)
           .single();
         if (rackError || !dbRack) return;
@@ -165,6 +179,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
         if (devicesError || !devices) return;
 
         const loadedRack = normalizeRackData({
+          dbId: dbRack.id,
+          builderRackKey: dbRack.builder_rack_key,
           rackName: dbRack.name || `Rack ${dbRack.identifier || ''}`,
           rackNumber: dbRack.identifier,
           maxRU: dbRack.ru_capacity,
@@ -173,6 +189,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
             endRU: dev.starting_ru - dev.ru_height + 1,
             type: dev.device_type === 'network_switch' ? 'switch' : dev.device_type,
             label: dev.name,
+            ...makeModelFields(dev),
           })),
         });
 
@@ -489,7 +506,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       });
 
       // If no ID (loaded from localStorage), fetch it first
-      let rackId = updatedRack.id;
+      let rackId = updatedRack.id || updatedRack.dbId;
       if (!rackId) {
         const { data: existingRack } = await supabase
           .from('racks')
@@ -514,6 +531,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           name: updatedRack.rackName,
           identifier: updatedRack.rackNumber || null,
           ru_capacity: updatedRack.maxRU,
+          ru_size_unknown: false,
           site_id: updatedRack.site_id || null,
           level: updatedRack.level || null,
           notes: updatedRack.notes || null,
@@ -669,10 +687,15 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       if (!site) return;
 
       for (const [rackIndex, rack] of racks.entries()) {
-        const builderRackKey = `local-rack-${rack.rackNumber || rackIndex + 1}`;
+        const builderRackKey = rack.builderRackKey || (rack.dbId ? `rack-${rack.dbId}` : `local-rack-${rack.rackNumber || rackIndex + 1}`);
+        if (rack.dbId) {
+          await supabase.from('racks').update({ name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', builder_rack_key: builderRackKey }).eq('id', rack.dbId);
+          continue;
+        }
+        const { data: existingRack } = await supabase.from('racks').select('site_id').eq('organisation_id', site.organisation_id).eq('builder_rack_key', builderRackKey).maybeSingle();
         await supabase
           .from('racks')
-          .upsert({ organisation_id: site.organisation_id, site_id: site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
+          .upsert({ organisation_id: site.organisation_id, site_id: existingRack?.site_id || site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
           .select('id')
           .single();
       }
@@ -702,7 +725,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
 
       const { data: dbRacks, error: racksError } = await supabase
         .from('racks')
-        .select('id, ru_capacity, name, identifier, doc_status')
+        .select('id, ru_capacity, name, identifier, doc_status, builder_rack_key')
         .in('site_id', sites.map((s) => s.id))
         .eq('doc_status', 'current');
       if (racksError || !dbRacks?.length) return;
@@ -717,6 +740,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           if (devicesError || !devices) return null;
 
           return normalizeRackData({
+            dbId: dbRack.id,
+            builderRackKey: dbRack.builder_rack_key,
             rackName: dbRack.name || `Rack ${dbRack.identifier || ''}`,
             rackNumber: dbRack.identifier,
             maxRU: dbRack.ru_capacity,
@@ -725,6 +750,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
               endRU: dev.starting_ru - dev.ru_height + 1,
               type: dev.device_type === 'network_switch' ? 'switch' : dev.device_type,
               label: dev.name,
+              ...makeModelFields(dev),
             })),
           });
         })
@@ -799,7 +825,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     try {
       const { data: dbRack, error: rackError } = await supabase
         .from('racks')
-        .select('id, ru_capacity, name, identifier')
+        .select('id, ru_capacity, name, identifier, builder_rack_key')
         .eq('id', rackId)
         .single();
       if (rackError || !dbRack) throw rackError || new Error('Rack not found');
@@ -812,6 +838,8 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
       if (devicesError) throw devicesError;
 
       const newRack = normalizeRackData({
+        dbId: dbRack.id,
+        builderRackKey: dbRack.builder_rack_key,
         rackName: dbRack.name || `Rack ${dbRack.identifier || ''}`,
         rackNumber: dbRack.identifier,
         maxRU: dbRack.ru_capacity,
@@ -820,6 +848,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           endRU: dev.starting_ru - dev.ru_height + 1,
           type: dev.device_type === 'network_switch' ? 'switch' : dev.device_type,
           label: dev.name,
+          ...makeModelFields(dev),
         })),
       });
 
@@ -912,21 +941,30 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
     }
 
     for (const [rackIndex, rack] of racks.entries()) {
-      const builderRackKey = `local-rack-${rack.rackNumber || rackIndex + 1}`;
-      const { data: savedRack, error: rackError } = await supabase
-        .from('racks')
-        .upsert({ organisation_id: site.organisation_id, site_id: site.id, name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', created_by: session.user.id, builder_rack_key: builderRackKey }, { onConflict: 'organisation_id,builder_rack_key' })
-        .select('id')
-        .single();
+      const builderRackKey = rack.builderRackKey || (rack.dbId ? `rack-${rack.dbId}` : `local-rack-${rack.rackNumber || rackIndex + 1}`);
+      const rackFields = { name: rack.rackName || `Rack ${rackIndex + 1}`, identifier: rack.rackNumber || null, ru_capacity: rack.maxRU, doc_status: 'current', builder_rack_key: builderRackKey };
+      let savedRack;
+      let rackError;
+      if (rack.dbId) {
+        ({ data: savedRack, error: rackError } = await supabase.from('racks').update(rackFields).eq('id', rack.dbId).select('id, organisation_id').single());
+      } else {
+        const { data: existingRack } = await supabase.from('racks').select('site_id').eq('organisation_id', site.organisation_id).eq('builder_rack_key', builderRackKey).maybeSingle();
+        ({ data: savedRack, error: rackError } = await supabase
+          .from('racks')
+          .upsert({ ...rackFields, organisation_id: site.organisation_id, site_id: existingRack?.site_id || site.id, created_by: session.user.id }, { onConflict: 'organisation_id,builder_rack_key' })
+          .select('id, organisation_id')
+          .single());
+      }
       if (rackError || !savedRack) {
         const errorMsg = rackError?.message || 'Unknown error';
         setWorkspaceSaveMessage(`Rack save failed: ${rack.rackName || 'Rack'} - ${errorMsg}`);
         setSavingWorkspace(false);
         return;
       }
+      const rackOrganisationId = savedRack.organisation_id;
       const deviceEntries = rack.items.filter((item) => item.type !== 'empty').map((item, itemIndex) => ({ item, builderDeviceKey: `${builderRackKey}-item-${itemIndex + 1}` }));
       const deviceRows = deviceEntries.map(({ item, builderDeviceKey }, itemIndex) => ({
-        organisation_id: site.organisation_id,
+        organisation_id: rackOrganisationId,
         rack_id: savedRack.id,
         name: item.label || `Device ${itemIndex + 1}`,
         device_type: databaseDeviceType(item.type),
@@ -973,7 +1011,7 @@ export default function App({ isGuest = false, onRequireAuth, onDashboard, onSet
           const deviceId = savedDeviceByKey.get(builderDeviceKey);
           if (!deviceId) return [];
           return connectionPointsForItem(item).map((point, pointIndex) => ({
-            organisation_id: site.organisation_id,
+            organisation_id: rackOrganisationId,
             device_id: deviceId,
             client_point_id: point.id,
             name: point.name,

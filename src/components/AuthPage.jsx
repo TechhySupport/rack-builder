@@ -135,8 +135,7 @@ export default function AuthPage({ onBack, onAuthenticated, onModeChange, initia
     <main className="auth-shell">
       <section className="auth-aside">
         <button className="brand-lockup light-brand" onClick={onBack} aria-label="Back to Racked View home">
-          <img className="brand-logo" src="/assets/racked-view-logo.png" alt="" />
-          <span>Racked View</span>
+          <img className="brand-logo" src="/assets/racked-view-wordmark-light.png" alt="Racked View" />
         </button>
         <div className="auth-aside-copy"><p className="eyebrow">Infrastructure clarity</p><h1>Build with the whole rack in view.</h1><p>Plan, document, and maintain the network equipment your organization depends on.</p></div>
         <div className="aside-rack-lines" aria-hidden="true"><span /><span /><span /><span /></div>

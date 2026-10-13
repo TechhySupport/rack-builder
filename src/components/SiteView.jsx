@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
+import { readCache, writeCache } from '../lib/pageCache.js';
+import AppSidebar from './AppSidebar.jsx';
+import NotificationBell from './NotificationBell.jsx';
+import AddressAutocomplete from './AddressAutocomplete.jsx';
 import '../dashboard.css';
 
-export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
-  const [site, setSite] = useState(null);
-  const [editedSite, setEditedSite] = useState(null);
-  const [racks, setRacks] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function SiteView({ session, siteId, notifyNav, onBack, onOpenBuilder, onOpenDesign, onOpenHeatmap, onSettings }) {
+  const cacheKey = `site:${session.user.id}:${siteId}`;
+  const [cached] = useState(() => readCache(cacheKey));
+  const [site, setSite] = useState(cached?.site ?? null);
+  const [editedSite, setEditedSite] = useState(cached?.site ?? null);
+  const [racks, setRacks] = useState(cached?.racks ?? []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -43,13 +49,14 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
         .from('racks')
         .select('*')
         .eq('site_id', siteId)
-        .eq('doc_status', 'current')
+        .neq('doc_status', 'archived')
         .order('created_at', { ascending: false });
 
       if (racksError) {
         setError('Could not load racks');
       } else {
         setRacks(racksData || []);
+        writeCache(cacheKey, { site: siteData, racks: racksData || [] });
       }
     } catch (err) {
       setError('Error loading site data');
@@ -162,6 +169,7 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
           Back
         </button>
         <div className="dashboard-header-actions">
+          <NotificationBell session={session} nav={notifyNav} />
           <button
             className="dashboard-primary"
             onClick={() => onOpenBuilder()}
@@ -173,6 +181,9 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
         </div>
       </div>
 
+      <div className="dashboard-body">
+      <AppSidebar active="sites" onNavigate={(target) => { if (target === 'builder') onOpenBuilder(); else if (target === 'design') onOpenDesign(); else if (target === 'heatmap') onOpenHeatmap(); else if (target === 'settings') onSettings?.(); else onBack(target); }} />
+      <div className="dashboard-main">
       <div className="dashboard-content">
         <section className="dashboard-section">
           <div className="section-heading">
@@ -213,22 +224,14 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
               />
             </label>
 
-            <label style={{ display: 'grid', gap: '6px' }}>
+            <div style={{ display: 'grid', gap: '6px' }}>
               <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a2030' }}>Address</span>
-              <textarea
+              <AddressAutocomplete
                 value={editedSite?.address || ''}
-                onChange={(e) => setEditedSite({ ...editedSite, address: e.target.value })}
-                style={{
-                  padding: '10px 12px',
-                  border: '1px solid #d9e1db',
-                  borderRadius: '5px',
-                  fontSize: '14px',
-                  fontFamily: 'Manrope, sans-serif',
-                  minHeight: '80px',
-                  resize: 'vertical'
-                }}
+                onChange={(address) => setEditedSite((current) => ({ ...current, address }))}
+                inputClassName="inline-input inline-input--lg"
               />
-            </label>
+            </div>
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'space-between' }}>
               <button
@@ -328,6 +331,8 @@ export default function SiteView({ session, siteId, onBack, onOpenBuilder }) {
             </div>
           )}
         </section>
+      </div>
+      </div>
       </div>
     </div>
   );

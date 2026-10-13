@@ -7,12 +7,19 @@ import AcceptInvitePage from './components/AcceptInvitePage.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import SiteView from './components/SiteView.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
+import DesignPage from './components/DesignPage.jsx';
+import DesignViewer from './components/DesignViewer.jsx';
+import HeatMapViewer from './components/HeatMapViewer.jsx';
+import HeatMapPage from './components/HeatMapPage.jsx';
 import { supabase } from './lib/supabase.js';
+import { clearCache, prefetchTabs } from './lib/pageCache.js';
 import './marketing.css';
 
 const BUILDER_PATH = '/b/builder';
 const DASHBOARD_PATH = '/dashboard';
 const SETTINGS_PATH = '/settings';
+const DESIGN_PATH = '/design';
+const HEATMAP_PATH = '/heatmap';
 const SITE_PATH = '/site';
 const ACCEPT_INVITE_PATH = '/accept-invite';
 const AUTH_PATHS = {
@@ -25,10 +32,20 @@ function viewFromPathname() {
   if (window.location.pathname === BUILDER_PATH) return 'builder';
   if (window.location.pathname === DASHBOARD_PATH) return 'dashboard';
   if (window.location.pathname === SETTINGS_PATH) return 'settings';
+  if (window.location.pathname === DESIGN_PATH) return 'design';
+  if (window.location.pathname === HEATMAP_PATH) return 'heatmap';
   if (window.location.pathname === SITE_PATH) return 'site';
   if (window.location.pathname === ACCEPT_INVITE_PATH) return 'accept-invite';
   if (Object.values(AUTH_PATHS).includes(window.location.pathname)) return 'auth';
   return 'landing';
+}
+
+function viewerTokenFromPathname() {
+  return window.location.pathname.match(/^\/viewer\/([A-Za-z0-9_-]+)\/?$/)?.[1] || null;
+}
+
+function heatmapViewerTokenFromPathname() {
+  return window.location.pathname.match(/^\/heatmap-viewer\/([A-Za-z0-9_-]+)\/?$/)?.[1] || null;
 }
 
 function authModeFromPathname() {
@@ -43,11 +60,12 @@ export default function Root() {
   const initialView = viewFromPathname();
   const [view, setView] = useState(initialView);
   const [authenticatedView, setAuthenticatedView] = useState(
-    () => ['builder', 'settings', 'site'].includes(initialView) ? initialView : 'dashboard',
+    () => ['builder', 'settings', 'site', 'design', 'heatmap'].includes(initialView) ? initialView : 'dashboard',
   );
   const [authReturnView, setAuthReturnView] = useState(authReturnViewFromUrl);
   const [authMode, setAuthMode] = useState(authModeFromPathname);
   const [session, setSession] = useState(null);
+  const [navKey, setNavKey] = useState(0);
   const [passwordRecovery, setPasswordRecovery] = useState(
     () => Boolean(new URLSearchParams(window.location.search).get('recovery')),
   );
@@ -87,8 +105,9 @@ export default function Root() {
     setAuthenticatedView('builder');
   }
 
-  function openDashboard() {
-    window.history.pushState({}, '', DASHBOARD_PATH);
+  function openDashboard(panel) {
+    const path = typeof panel === 'string' && panel !== 'dashboard' ? `${DASHBOARD_PATH}?panel=${panel}` : DASHBOARD_PATH;
+    window.history.pushState({}, '', path);
     setView('dashboard');
     setAuthenticatedView('dashboard');
   }
@@ -99,14 +118,30 @@ export default function Root() {
     setAuthenticatedView('settings');
   }
 
+  function openDesign(id) {
+    window.history.pushState({}, '', typeof id === 'string' ? `${DESIGN_PATH}?id=${encodeURIComponent(id)}` : DESIGN_PATH);
+    setView('design');
+    setAuthenticatedView('design');
+    setNavKey((key) => key + 1);
+  }
+
+  function openHeatmap(id) {
+    window.history.pushState({}, '', typeof id === 'string' ? `${HEATMAP_PATH}?id=${encodeURIComponent(id)}` : HEATMAP_PATH);
+    setView('heatmap');
+    setAuthenticatedView('heatmap');
+    setNavKey((key) => key + 1);
+  }
+
   function openSite(siteId) {
     window.history.pushState({}, '', `${SITE_PATH}?siteId=${encodeURIComponent(siteId)}`);
     setView('site');
     setAuthenticatedView('site');
+    setNavKey((key) => key + 1);
   }
 
   async function signOut() {
     await supabase?.auth.signOut();
+    clearCache();
     window.history.replaceState({}, '', '/');
     setSession(null);
     setView('landing');
@@ -125,7 +160,7 @@ export default function Root() {
     function handlePopState() {
       const nextView = viewFromPathname();
       setView(nextView);
-      setAuthenticatedView(['builder', 'settings'].includes(nextView) ? nextView : 'dashboard');
+      setAuthenticatedView(['builder', 'settings', 'design', 'heatmap'].includes(nextView) ? nextView : 'dashboard');
       if (nextView === 'auth') {
         setAuthMode(authModeFromPathname());
         setAuthReturnView(authReturnViewFromUrl());
@@ -145,6 +180,7 @@ export default function Root() {
         setView('auth');
       }
       setSession(nextSession);
+      if (event === 'SIGNED_OUT') clearCache();
       if (event === 'SIGNED_IN' && window.location.pathname === BUILDER_PATH) {
         setView('builder');
         setAuthenticatedView('builder');
@@ -157,6 +193,14 @@ export default function Root() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return undefined;
+    // Warm every tab's data shortly after sign-in so the first switch is instant too.
+    const timer = setTimeout(() => prefetchTabs(userId), 800);
+    return () => clearTimeout(timer);
+  }, [session?.user?.id]);
 
   function handleInviteVerified() {
     const url = new URL(window.location.href);
@@ -175,16 +219,23 @@ export default function Root() {
     setInvitationSetup(false);
   }
 
+  const notifyNav = { builder: openBuilder, design: openDesign, heatmap: openHeatmap, site: openSite, tasks: () => openDashboard('tasks'), members: () => openDashboard('members') };
+  const viewerToken = viewerTokenFromPathname();
+  if (viewerToken) return <DesignViewer token={viewerToken} />;
+  const heatmapViewerToken = heatmapViewerTokenFromPathname();
+  if (heatmapViewerToken) return <HeatMapViewer token={heatmapViewerToken} />;
   if (checkingSession) return <div className="session-loading">Loading Racked View</div>;
   if (view === 'accept-invite' && !invitationSetup) return <AcceptInvitePage onVerified={handleInviteVerified} onBack={() => setView('landing')} />;
   if (passwordRecovery || invitationSetup) return <AuthPage recovery={passwordRecovery} invitation={invitationSetup} onBack={() => setView('landing')} onRecoveryComplete={completeCredentialSetup} />;
   if (session && authenticatedView === 'builder') return <App session={session} onDashboard={openDashboard} onSettings={openSettings} onSignOut={signOut} />;
-  if (session && authenticatedView === 'settings') return <SettingsPage session={session} onDashboard={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+  if (session && authenticatedView === 'settings') return <SettingsPage session={session} notifyNav={notifyNav} onDashboard={openDashboard} onOpenBuilder={openBuilder} onOpenDesign={openDesign} onOpenHeatmap={openHeatmap} onSignOut={signOut} />;
+  if (session && authenticatedView === 'design') return <DesignPage key={navKey} session={session} notifyNav={notifyNav} onDashboard={openDashboard} onOpenBuilder={openBuilder} onOpenHeatmap={openHeatmap} onSettings={openSettings} onSignOut={signOut} />;
+  if (session && authenticatedView === 'heatmap') return <HeatMapPage key={navKey} session={session} notifyNav={notifyNav} onDashboard={openDashboard} onOpenBuilder={openBuilder} onOpenDesign={openDesign} onSettings={openSettings} onSignOut={signOut} />;
   if (session && authenticatedView === 'site') {
     const siteId = new URLSearchParams(window.location.search).get('siteId');
-    return <SiteView session={session} siteId={siteId} onBack={openDashboard} onOpenBuilder={openBuilder} onSignOut={signOut} />;
+    return <SiteView key={navKey} session={session} siteId={siteId} notifyNav={notifyNav} onBack={openDashboard} onOpenBuilder={openBuilder} onOpenDesign={openDesign} onOpenHeatmap={openHeatmap} onSettings={openSettings} onSignOut={signOut} />;
   }
-  if (session) return <Dashboard session={session} onOpenBuilder={openBuilder} onOpenSite={openSite} onSettings={openSettings} onSignOut={signOut} />;
+  if (session) return <Dashboard session={session} notifyNav={notifyNav} onOpenBuilder={openBuilder} onOpenDesign={openDesign} onOpenHeatmap={openHeatmap} onOpenSite={openSite} onSettings={openSettings} onSignOut={signOut} />;
   if (view === 'auth') return <AuthPage initialMode={authMode} onModeChange={changeAuthMode} onBack={leaveAuth} onAuthenticated={completeAuthentication} />;
   if (view === 'builder') return <App isGuest onRequireAuth={() => openAuth('builder')} />;
   if (!previewAccess) return <ComingSoonLanding onUnlock={() => setPreviewAccess(true)} />;

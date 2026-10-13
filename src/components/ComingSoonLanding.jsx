@@ -50,8 +50,7 @@ export default function ComingSoonLanding({ onUnlock }) {
     <main className="coming-soon" style={{ '--coming-soon-image': `url(${heroBackground})` }}>
       <header className="coming-soon-nav">
         <button className="coming-soon-brand" onClick={handleLogoClick} aria-label="RackedView">
-          <img src="/assets/racked-view-logo.png" alt="" />
-          <span>RackedView</span>
+          <img src="/assets/racked-view-wordmark-light.png" alt="RackedView" />
         </button>
         <span className="coming-soon-status"><i /> Platform launch in progress</span>
       </header>

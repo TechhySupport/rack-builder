@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 
-export default function AddressAutocomplete({ value, onChange }) {
+export default function AddressAutocomplete({ value, onChange, inputClassName, placeholder = 'Company or address' }) {
   const searchTimerRef = useRef(null);
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -55,5 +55,5 @@ export default function AddressAutocomplete({ value, onChange }) {
     searchTimerRef.current = window.setTimeout(() => searchPlaces(nextValue), 550);
   }
 
-  return <div className="address-search"><div className="address-search-input"><input value={value} onChange={(event) => handleAddressChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); searchPlaces(); } }} placeholder="Company or address" autoComplete="street-address" /><button type="button" className="address-search-button" onClick={searchPlaces} disabled={searching} aria-label="Search address" title="Search address"><Search size={17} /></button></div>{searching && <span className="address-search-status">Searching places...</span>}{searchError && <span className="address-lookup-error">{searchError}</span>}{results.length > 0 && <div className="address-search-results">{results.map((place) => <button type="button" key={place.id} onClick={() => selectPlace(place)}>{place.address}</button>)}</div>}</div>;
+  return <div className="address-search"><div className="address-search-input"><input className={inputClassName} value={value} onChange={(event) => handleAddressChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); searchPlaces(); } }} placeholder={placeholder} autoComplete="street-address" /><button type="button" className="address-search-button" onClick={searchPlaces} disabled={searching} aria-label="Search address" title="Search address"><Search size={17} /></button></div>{searching && <span className="address-search-status">Searching places...</span>}{searchError && <span className="address-lookup-error">{searchError}</span>}{results.length > 0 && <div className="address-search-results">{results.map((place) => <button type="button" key={place.id} onClick={() => selectPlace(place)}>{place.address}</button>)}</div>}</div>;
 }

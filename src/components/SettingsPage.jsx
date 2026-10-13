@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { ArrowLeft, LayoutDashboard, LogOut, Save, Wrench } from 'lucide-react';
 import { supabase } from '../lib/supabase.js';
+import AppSidebar from './AppSidebar.jsx';
+import NotificationBell from './NotificationBell.jsx';
 import '../dashboard.css';
 
-export default function SettingsPage({ session, onDashboard, onOpenBuilder, onSignOut }) {
+export default function SettingsPage({ session, notifyNav, onDashboard, onOpenBuilder, onOpenDesign, onOpenHeatmap, onSignOut }) {
   const [fullName, setFullName] = useState(session.user.user_metadata?.full_name || session.user.user_metadata?.name || '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -33,12 +35,16 @@ export default function SettingsPage({ session, onDashboard, onOpenBuilder, onSi
   return (
     <main className="dashboard-shell settings-shell">
       <header className="dashboard-header">
-        <button className="dashboard-brand" onClick={onDashboard} aria-label="Go to dashboard"><img src="/assets/racked-view-logo.png" alt="" /><span>Racked View</span></button>
+        <button className="dashboard-brand" onClick={onDashboard} aria-label="Go to dashboard"><picture><source srcSet="/assets/racked-view-wordmark-light.png" media="(prefers-color-scheme: dark)" /><img src="/assets/racked-view-wordmark.png" alt="Racked View" /></picture></button>
         <div className="dashboard-header-actions">
+          <NotificationBell session={session} nav={notifyNav} />
           <button className="dashboard-secondary" onClick={onOpenBuilder}><Wrench size={16} />Open builder</button>
           <button className="dashboard-signout" onClick={onSignOut}><LogOut size={15} />Sign out</button>
         </div>
       </header>
+      <div className="dashboard-body">
+      <AppSidebar active="settings" onNavigate={(target) => { if (target === 'builder') onOpenBuilder(); else if (target === 'design') onOpenDesign(); else if (target === 'heatmap') onOpenHeatmap(); else if (target !== 'settings') onDashboard(target); }} />
+      <div className="dashboard-main">
       <div className="settings-content">
         <button className="settings-back" onClick={onDashboard}><ArrowLeft size={16} />Dashboard</button>
         <div className="settings-heading"><p className="dashboard-kicker">Account</p><h1>Settings</h1><p>Manage the identity shown across your Racked View workspace.</p></div>
@@ -50,6 +56,8 @@ export default function SettingsPage({ session, onDashboard, onOpenBuilder, onSi
           {message && <p className="settings-success" role="status">{message}</p>}
           <button className="dashboard-primary" disabled={saving}><Save size={16} />{saving ? 'Saving...' : 'Save changes'}</button>
         </form>
+      </div>
+      </div>
       </div>
     </main>
   );
